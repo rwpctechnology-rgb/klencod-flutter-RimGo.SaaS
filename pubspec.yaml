@@ -1,5 +1,5 @@
 name: rimgosaas
-description: A professional task manager built with Flutter.
+description: A professional task manager and ERP system
 publish_to: 'none'
 version: 1.0.0+1
 
@@ -9,10 +9,6 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  sqflite: ^2.3.0
-  path: ^1.8.3
-  pdf: ^3.10.7
-  printing: ^5.11.1
-  
+
 flutter:
   uses-material-design: true
