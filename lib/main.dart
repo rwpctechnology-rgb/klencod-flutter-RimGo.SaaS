@@ -10,7 +10,7 @@ class AccountingApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'نظام المحاسبة الذكي',
+      title: 'نظام المحاسبة والصيانة المتكامل',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(
@@ -18,14 +18,14 @@ class AccountingApp extends StatelessWidget {
           brightness: Brightness.light,
         ),
         useMaterial3: true,
-        fontFamily: 'Roboto',
       ),
       home: const MainHomeScreen(),
     );
   }
 }
 
-// نموذج بيانات الحساب (عميل / مورد)
+// --- النماذج (Models) ---
+
 class Account {
   final String id;
   final String name;
@@ -40,17 +40,14 @@ class Account {
     this.debit = 0.0,
     this.credit = 0.0,
   });
-
-  double get balance => debit - credit;
 }
 
-// نموذج بيانات الصنف / المنتجات
 class Product {
   final String id;
   final String name;
-  double costPrice; // التكلفة
-  double sellPrice; // سعر البيع
-  int quantity; // الكمية
+  double costPrice;
+  double sellPrice;
+  int quantity;
 
   Product({
     required this.id,
@@ -61,12 +58,37 @@ class Product {
   });
 }
 
-// نموذج المعاملة المالية
+class MaintenanceTicket {
+  final String id;
+  final String clientName;
+  final String clientPhone;
+  final String deviceModel;
+  final String issueDescription;
+  String status; // 'قيد الفحص', 'بانتظار قطع غيار', 'تم الإصلاح', 'تم التسليم'
+  double laborCost; // أجور اليد
+  double partsCost; // تكلفة قطع الغيار
+  bool isInvoiced; // هل تحولت لفاتورة
+
+  MaintenanceTicket({
+    required this.id,
+    required this.clientName,
+    required this.clientPhone,
+    required this.deviceModel,
+    required this.issueDescription,
+    this.status = 'قيد الفحص',
+    this.laborCost = 0.0,
+    this.partsCost = 0.0,
+    this.isInvoiced = false,
+  });
+
+  double get totalPrice => laborCost + partsCost;
+}
+
 class TransactionModel {
   final String id;
   final String title;
   final double amount;
-  final String type; // 'قبض', 'صرف', 'بيع', 'شراء'
+  final String type; // 'قبض', 'صرف', 'فاتورة صيانة', 'بيع'
   final DateTime date;
 
   TransactionModel({
@@ -78,6 +100,8 @@ class TransactionModel {
   });
 }
 
+// --- الشاشة الرئيسية ---
+
 class MainHomeScreen extends StatefulWidget {
   const MainHomeScreen({super.key});
 
@@ -88,26 +112,35 @@ class MainHomeScreen extends StatefulWidget {
 class _MainHomeScreenState extends State<MainHomeScreen> {
   int _selectedIndex = 0;
 
-  // البيانات التقديرية للبدء
   final List<Account> _accounts = [
-    Account(id: '1', name: 'شركة الأمل', phone: '0590000000', debit: 1500, credit: 200),
-    Account(id: '2', name: 'العميل أحمد', phone: '0560000000', debit: 0, credit: 450),
+    Account(id: '1', name: 'سامر خالد', phone: '0590000000', debit: 250, credit: 0),
   ];
 
   final List<Product> _products = [
-    Product(id: '1', name: 'منتج أ', costPrice: 50, sellPrice: 75, quantity: 100),
-    Product(id: '2', name: 'منتج ب', costPrice: 120, sellPrice: 160, quantity: 30),
+    Product(id: '1', name: 'شاشة أيفون 13', costPrice: 40, sellPrice: 65, quantity: 5),
+    Product(id: '2', name: 'بطارية سامسونج S21', costPrice: 15, sellPrice: 25, quantity: 8),
   ];
 
-  final List<TransactionModel> _transactions = [
-    TransactionModel(id: '1', title: 'دفعة من العميل أحمد', amount: 200, type: 'قبض', date: DateTime.now()),
-    TransactionModel(id: '2', title: 'شراء بضاعة جديدة', amount: 500, type: 'صرف', date: DateTime.now()),
+  final List<MaintenanceTicket> _tickets = [
+    MaintenanceTicket(
+      id: 'T-1001',
+      clientName: 'سامر خالد',
+      clientPhone: '0590000000',
+      deviceModel: 'iPhone 13 Pro',
+      issueDescription: 'تبديل شاشة مكسورة',
+      status: 'قيد الفحص',
+      laborCost: 20.0,
+      partsCost: 65.0,
+    ),
   ];
+
+  final List<TransactionModel> _transactions = [];
 
   @override
   Widget build(BuildContext context) {
     final List<Widget> pages = [
       _buildDashboardTab(),
+      _buildTicketsTab(),
       _buildAccountsTab(),
       _buildProductsTab(),
       _buildTransactionsTab(),
@@ -115,20 +148,17 @@ class _MainHomeScreenState extends State<MainHomeScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('المحاسب الذكي', style: TextStyle(fontWeight: FontWeight.bold)),
+        title: const Text('المحاسب الذكي وإدارة الصيانة', style: TextStyle(fontWeight: FontWeight.bold)),
         centerTitle: true,
         backgroundColor: Theme.of(context).colorScheme.primaryContainer,
       ),
       body: pages[_selectedIndex],
       bottomNavigationBar: NavigationBar(
         selectedIndex: _selectedIndex,
-        onDestinationSelected: (index) {
-          setState(() {
-            _selectedIndex = index;
-          });
-        },
+        onDestinationSelected: (index) => setState(() => _selectedIndex = index),
         destinations: const [
           NavigationDestination(icon: Icon(Icons.dashboard_outlined), selectedIcon: Icon(Icons.dashboard), label: 'الرئيسية'),
+          NavigationDestination(icon: Icon(Icons.build_outlined), selectedIcon: Icon(Icons.build), label: 'الصيانة'),
           NavigationDestination(icon: Icon(Icons.people_outline), selectedIcon: Icon(Icons.people), label: 'الحسابات'),
           NavigationDestination(icon: Icon(Icons.inventory_2_outlined), selectedIcon: Icon(Icons.inventory_2), label: 'الأصناف'),
           NavigationDestination(icon: Icon(Icons.receipt_long_outlined), selectedIcon: Icon(Icons.receipt_long), label: 'الحركات'),
@@ -137,10 +167,11 @@ class _MainHomeScreenState extends State<MainHomeScreen> {
     );
   }
 
-  // --- 1. شاشة لوحة التحكم ---
+  // 1. لوحة التحكم
   Widget _buildDashboardTab() {
     double totalDebit = _accounts.fold(0, (sum, item) => sum + item.debit);
     double totalCredit = _accounts.fold(0, (sum, item) => sum + item.credit);
+    int activeTickets = _tickets.where((t) => t.status != 'تم التسليم').length;
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16.0),
@@ -149,77 +180,197 @@ class _MainHomeScreenState extends State<MainHomeScreen> {
         children: [
           Row(
             children: [
-              Expanded(child: _buildSummaryCard('إجمالي لكم (مدين)', '\$${totalDebit.toStringAsFixed(2)}', Colors.green)),
-              const SizedBox(width: 12),
-              Expanded(child: _buildSummaryCard('إجمالي عليكم (دائن)', '\$${totalCredit.toStringAsFixed(2)}', Colors.red)),
+              Expanded(child: _buildCard('تذاكر الصيانة النشطة', '$activeTickets جهاز', Colors.orange)),
+              const SizedBox(width: 10),
+              Expanded(child: _buildCard('إجمالي المدين (لكم)', '\$${totalDebit.toStringAsFixed(1)}', Colors.green)),
             ],
           ),
-          const SizedBox(height: 12),
-          _buildSummaryCard('الصافي الحالي', '\$${(totalDebit - totalCredit).toStringAsFixed(2)}', Colors.blue),
+          const SizedBox(height: 10),
+          _buildCard('إجمالي الدائن (عليكم)', '\$${totalCredit.toStringAsFixed(1)}', Colors.red),
           const SizedBox(height: 20),
-          const Text('آخر الحركات المالية', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          const Text('تذاكر الصيانة الحالية', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
           const SizedBox(height: 10),
           ListView.builder(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
-            itemCount: _transactions.length,
-            itemBuilder: (context, index) {
-              final tx = _transactions[index];
-              return Card(
-                child: ListTile(
-                  leading: CircleAvatar(
-                    backgroundColor: tx.type == 'قبض' ? Colors.green.shade100 : Colors.red.shade100,
-                    child: Icon(
-                      tx.type == 'قبض' ? Icons.arrow_downward : Icons.arrow_upward,
-                      color: tx.type == 'قبض' ? Colors.green : Colors.red,
-                    ),
-                  ),
-                  title: Text(tx.title),
-                  subtitle: Text('${tx.date.day}/${tx.date.month}/${tx.date.year}'),
-                  trailing: Text(
-                    '\$${tx.amount.toStringAsFixed(2)}',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: tx.type == 'قبض' ? Colors.green : Colors.red,
-                    ),
-                  ),
-                ),
-              );
-            },
+            itemCount: _tickets.length,
+            itemBuilder: (ctx, idx) => _buildTicketCard(_tickets[idx]),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildSummaryCard(String title, String value, Color color) {
+  Widget _buildCard(String title, String val, Color col) {
     return Card(
       elevation: 2,
       child: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
           children: [
-            Text(title, style: const TextStyle(fontSize: 14, color: Colors.grey)),
-            const SizedBox(height: 8),
-            Text(value, style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: color)),
+            Text(title, style: const TextStyle(fontSize: 13, color: Colors.grey)),
+            const SizedBox(height: 6),
+            Text(val, style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: col)),
           ],
         ),
       ),
     );
   }
 
-  // --- 2. شاشة الحسابات ---
-  Widget _buildAccountsTab() {
+  // 2. شاشة تذاكر الصيانة
+  Widget _buildTicketsTab() {
     return Scaffold(
-      floatingActionButton: FloatingActionButton(
-        onPressed: _addNewAccountDialog,
-        child: const Icon(Icons.add),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: _addNewTicketDialog,
+        icon: const Icon(Icons.add_to_photos),
+        label: const Text('تذكرة صيانة جديدة'),
       ),
       body: ListView.builder(
         padding: const EdgeInsets.all(8.0),
+        itemCount: _tickets.length,
+        itemBuilder: (ctx, idx) => _buildTicketCard(_tickets[idx]),
+      ),
+    );
+  }
+
+  Widget _buildTicketCard(MaintenanceTicket ticket) {
+    return Card(
+      elevation: 3,
+      margin: const EdgeInsets.symmetric(vertical: 6),
+      child: ExpansionTile(
+        leading: CircleAvatar(
+          backgroundColor: ticket.isInvoiced ? Colors.green.shade100 : Colors.orange.shade100,
+          child: Icon(ticket.isInvoiced ? Icons.check_circle : Icons.build,
+              color: ticket.isInvoiced ? Colors.green : Colors.orange),
+        ),
+        title: Text('${ticket.deviceModel} - ${ticket.clientName}', style: const TextStyle(fontWeight: FontWeight.bold)),
+        subtitle: Text('الحالة: ${ticket.status} | الإجمالي: \$${ticket.totalPrice}'),
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(12.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('رقم التذكرة: ${ticket.id}'),
+                Text('رقم العميل: ${ticket.clientPhone}'),
+                Text('الوصف/المشكلة: ${ticket.issueDescription}'),
+                Text('تكلفة قطع الغيار: \$${ticket.partsCost}'),
+                Text('أجور الصيانة (اليد): \$${ticket.laborCost}'),
+                const Divider(),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    DropdownButton<String>(
+                      value: ticket.status,
+                      items: ['قيد الفحص', 'بانتظار قطع غيار', 'تم الإصلاح', 'تم التسليم']
+                          .map((s) => DropdownMenuItem(value: s, child: Text(s)))
+                          .toList(),
+                      onChanged: (val) {
+                        if (val != null) setState(() => ticket.status = val);
+                      },
+                    ),
+                    if (!ticket.isInvoiced)
+                      ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white),
+                        onPressed: () => _convertTicketToInvoice(ticket),
+                        icon: const Icon(Icons.receipt),
+                        label: const Text('تحويل إلى فاتورة'),
+                      )
+                    else
+                      const Chip(label: Text('تم الفوترة'), backgroundColor: Colors.greenAccent),
+                  ],
+                )
+              ],
+            ),
+          )
+        ],
+      ),
+    );
+  }
+
+  void _convertTicketToInvoice(MaintenanceTicket ticket) {
+    setState(() {
+      ticket.isInvoiced = true;
+      ticket.status = 'تم التسليم';
+      _transactions.add(TransactionModel(
+        id: DateTime.now().toString(),
+        title: 'فاتورة صيانة: ${ticket.deviceModel} (${ticket.clientName})',
+        amount: ticket.totalPrice,
+        type: 'فاتورة صيانة',
+        date: DateTime.now(),
+      ));
+
+      // إضافة المبلغ لمدين العميل تلقائياً
+      var acc = _accounts.firstWhere((a) => a.name == ticket.clientName,
+          orElse: () => Account(id: DateTime.now().toString(), name: ticket.clientName, phone: ticket.clientPhone));
+      acc.debit += ticket.totalPrice;
+      if (!_accounts.contains(acc)) _accounts.add(acc);
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('تم تحويل التذكرة ${ticket.id} إلى فاتورة وإضافتها لحساب العميل!')),
+    );
+  }
+
+  void _addNewTicketDialog() {
+    final nameCtrl = TextEditingController();
+    final phoneCtrl = TextEditingController();
+    final modelCtrl = TextEditingController();
+    final issueCtrl = TextEditingController();
+    final partsCtrl = TextEditingController();
+    final laborCtrl = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('إضافة تذكرة صيانة جديد'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(controller: nameCtrl, decoration: const InputDecoration(labelText: 'اسم العميل')),
+              TextField(controller: phoneCtrl, decoration: const InputDecoration(labelText: 'رقم الهاتف'), keyboardType: TextInputType.phone),
+              TextField(controller: modelCtrl, decoration: const InputDecoration(labelText: 'نوع/موديل الجهاز')),
+              TextField(controller: issueCtrl, decoration: const InputDecoration(labelText: 'وصف العطل')),
+              TextField(controller: partsCtrl, decoration: const InputDecoration(labelText: 'تكلفة قطع الغيار'), keyboardType: TextInputType.number),
+              TextField(controller: laborCtrl, decoration: const InputDecoration(labelText: 'أجور اليد / الصيانة'), keyboardType: TextInputType.number),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
+          ElevatedButton(
+            onPressed: () {
+              if (nameCtrl.text.isNotEmpty && modelCtrl.text.isNotEmpty) {
+                setState(() {
+                  _tickets.add(MaintenanceTicket(
+                    id: 'T-${1000 + _tickets.length + 1}',
+                    clientName: nameCtrl.text,
+                    clientPhone: phoneCtrl.text,
+                    deviceModel: modelCtrl.text,
+                    issueDescription: issueCtrl.text,
+                    partsCost: double.tryParse(partsCtrl.text) ?? 0.0,
+                    laborCost: double.tryParse(laborCtrl.text) ?? 0.0,
+                  ));
+                });
+                Navigator.pop(ctx);
+              }
+            },
+            child: const Text('حفظ التذكرة'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // 3. باقي الشاشات (الحسابات، الأصناف، الحركات)
+  Widget _buildAccountsTab() {
+    return Scaffold(
+      body: ListView.builder(
+        padding: const EdgeInsets.all(8.0),
         itemCount: _accounts.length,
-        itemBuilder: (context, index) {
-          final acc = _accounts[index];
+        itemBuilder: (ctx, idx) {
+          final acc = _accounts[idx];
           return Card(
             child: ListTile(
               title: Text(acc.name, style: const TextStyle(fontWeight: FontWeight.bold)),
@@ -228,8 +379,8 @@ class _MainHomeScreenState extends State<MainHomeScreen> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  Text('له: \$${acc.debit}', style: const TextStyle(color: Colors.green, fontSize: 12)),
-                  Text('عليه: \$${acc.credit}', style: const TextStyle(color: Colors.red, fontSize: 12)),
+                  Text('له (مدين): \$${acc.debit}', style: const TextStyle(color: Colors.green, fontSize: 12)),
+                  Text('عليه (دائن): \$${acc.credit}', style: const TextStyle(color: Colors.red, fontSize: 12)),
                 ],
               ),
             ),
@@ -239,30 +390,18 @@ class _MainHomeScreenState extends State<MainHomeScreen> {
     );
   }
 
-  // --- 3. شاشة الأصناف ---
   Widget _buildProductsTab() {
     return Scaffold(
-      floatingActionButton: FloatingActionButton(
-        onPressed: _addNewProductDialog,
-        child: const Icon(Icons.add),
-      ),
       body: ListView.builder(
         padding: const EdgeInsets.all(8.0),
         itemCount: _products.length,
-        itemBuilder: (context, index) {
-          final prod = _products[index];
+        itemBuilder: (ctx, idx) {
+          final prod = _products[idx];
           return Card(
             child: ListTile(
               title: Text(prod.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-              subtitle: Text('التكلفة: \$${prod.costPrice} | البيع: \$${prod.sellPrice}'),
-              trailing: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: Colors.blue.shade50,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text('الكمية: ${prod.quantity}', style: const TextStyle(fontWeight: FontWeight.bold)),
-              ),
+              subtitle: Text('تكلفة: \$${prod.costPrice} | بيع: \$${prod.sellPrice}'),
+              trailing: Chip(label: Text('المتوفر: ${prod.quantity}')),
             ),
           );
         },
@@ -270,158 +409,22 @@ class _MainHomeScreenState extends State<MainHomeScreen> {
     );
   }
 
-  // --- 4. شاشة الحركات المالية ---
   Widget _buildTransactionsTab() {
     return Scaffold(
-      floatingActionButton: FloatingActionButton(
-        onPressed: _addNewTransactionDialog,
-        child: const Icon(Icons.add),
-      ),
       body: ListView.builder(
         padding: const EdgeInsets.all(8.0),
         itemCount: _transactions.length,
-        itemBuilder: (context, index) {
-          final tx = _transactions[index];
+        itemBuilder: (ctx, idx) {
+          final tx = _transactions[idx];
           return Card(
             child: ListTile(
+              leading: const Icon(Icons.receipt, color: Colors.blue),
               title: Text(tx.title),
               subtitle: Text('النوع: ${tx.type}'),
-              trailing: Text('\$${tx.amount}', style: const TextStyle(fontWeight: FontWeight.bold)),
+              trailing: Text('\$${tx.amount.toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.green)),
             ),
           );
         },
-      ),
-    );
-  }
-
-  // حوارات إضافة البيانات الجديدة
-  void _addNewAccountDialog() {
-    final nameCtrl = TextEditingController();
-    final phoneCtrl = TextEditingController();
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('إضافة حساب جديد'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(controller: nameCtrl, decoration: const InputDecoration(labelText: 'اسم الحساب/العميل')),
-            TextField(controller: phoneCtrl, decoration: const InputDecoration(labelText: 'رقم الهاتف'), keyboardType: TextInputType.phone),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
-          ElevatedButton(
-            onPressed: () {
-              if (nameCtrl.text.isNotEmpty) {
-                setState(() {
-                  _accounts.add(Account(
-                    id: DateTime.now().toString(),
-                    name: nameCtrl.text,
-                    phone: phoneCtrl.text,
-                  ));
-                });
-                Navigator.pop(ctx);
-              }
-            },
-            child: const Text('حفظ'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _addNewProductDialog() {
-    final nameCtrl = TextEditingController();
-    final costCtrl = TextEditingController();
-    final sellCtrl = TextEditingController();
-    final qtyCtrl = TextEditingController();
-
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('إضافة صنف جديد'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(controller: nameCtrl, decoration: const InputDecoration(labelText: 'اسم الصنف')),
-            TextField(controller: costCtrl, decoration: const InputDecoration(labelText: 'سعر التكلفة'), keyboardType: TextInputType.number),
-            TextField(controller: sellCtrl, decoration: const InputDecoration(labelText: 'سعر البيع'), keyboardType: TextInputType.number),
-            TextField(controller: qtyCtrl, decoration: const InputDecoration(labelText: 'الكمية الحالية'), keyboardType: TextInputType.number),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
-          ElevatedButton(
-            onPressed: () {
-              if (nameCtrl.text.isNotEmpty) {
-                setState(() {
-                  _products.add(Product(
-                    id: DateTime.now().toString(),
-                    name: nameCtrl.text,
-                    costPrice: double.tryParse(costCtrl.text) ?? 0.0,
-                    sellPrice: double.tryParse(sellCtrl.text) ?? 0.0,
-                    quantity: int.tryParse(qtyCtrl.text) ?? 0,
-                  ));
-                });
-                Navigator.pop(ctx);
-              }
-            },
-            child: const Text('حفظ'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _addNewTransactionDialog() {
-    final titleCtrl = TextEditingController();
-    final amountCtrl = TextEditingController();
-    String selectedType = 'قبض';
-
-    showDialog(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          title: const Text('إضافة حركة مالية'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(controller: titleCtrl, decoration: const InputDecoration(labelText: 'البيان / الوصف')),
-              TextField(controller: amountCtrl, decoration: const InputDecoration(labelText: 'المبلغ'), keyboardType: TextInputType.number),
-              DropdownButton<String>(
-                value: selectedType,
-                isExpanded: true,
-                items: ['قبض', 'صرف'].map((String val) {
-                  return DropdownMenuItem<String>(value: val, child: Text(val));
-                }).toList(),
-                onChanged: (val) {
-                  if (val != null) setDialogState(() => selectedType = val);
-                },
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
-            ElevatedButton(
-              onPressed: () {
-                if (titleCtrl.text.isNotEmpty && amountCtrl.text.isNotEmpty) {
-                  setState(() {
-                    _transactions.add(TransactionModel(
-                      id: DateTime.now().toString(),
-                      title: titleCtrl.text,
-                      amount: double.tryParse(amountCtrl.text) ?? 0.0,
-                      type: selectedType,
-                      date: DateTime.now(),
-                    ));
-                  });
-                  Navigator.pop(ctx);
-                }
-              },
-              child: const Text('حفظ'),
-            ),
-          ],
-        ),
       ),
     );
   }
