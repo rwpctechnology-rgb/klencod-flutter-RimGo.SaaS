@@ -24,7 +24,6 @@ class FullERPAccountingApp extends StatelessWidget {
   }
 }
 
-// نموذج التبويب المفتوح (Tab Model)
 class OpenTab {
   final String id;
   final String title;
@@ -43,9 +42,8 @@ class ERPWorkspaceScreen extends StatefulWidget {
 
 class _ERPWorkspaceScreenState extends State<ERPWorkspaceScreen> {
   final List<OpenTab> _openTabs = [];
-  int _activeTabIndex = -1; // -1 تعني الشاشة الرئيسية
+  int _activeTabIndex = -1;
 
-  // إضافة/فتح تبويب جديد مثل متصفح كروم
   void _openNewTab(String id, String title, IconData icon, Widget content) {
     int existingIndex = _openTabs.indexWhere((tab) => tab.id == id);
     if (existingIndex != -1) {
@@ -83,21 +81,17 @@ class _ERPWorkspaceScreenState extends State<ERPWorkspaceScreen> {
       ),
       body: Column(
         children: [
-          // عرض المحتوى الحالي (إما الرئيسية أو التبويب المفتوح)
           Expanded(
             child: _activeTabIndex == -1 || _openTabs.isEmpty
                 ? _buildMainDashboard()
                 : _openTabs[_activeTabIndex].content,
           ),
-
-          // شريط التبويبات السفلي المميز (Chrome-like Tab Bar)
           if (_openTabs.isNotEmpty) _buildBottomTabBar(),
         ],
       ),
     );
   }
 
-  // --- شريط التبويبات المفتوحة في الأسفل ---
   Widget _buildBottomTabBar() {
     return Container(
       height: 48,
@@ -156,7 +150,6 @@ class _ERPWorkspaceScreenState extends State<ERPWorkspaceScreen> {
     );
   }
 
-  // --- الواجهة الرئيسية الجامعة لكل الأدوات والتحكم ---
   Widget _buildMainDashboard() {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(12.0),
@@ -172,7 +165,7 @@ class _ERPWorkspaceScreenState extends State<ERPWorkspaceScreen> {
             crossAxisSpacing: 8,
             mainAxisSpacing: 8,
             children: [
-              _buildToolCard('فاتورة بيع', Icons.add_shopping_cart, Colors.green, () => _openTab('sale_inv', 'فاتورة بيع', Icons.add_shopping_cart, _buildGenericForm('فاتورة بيع جديده'))),
+              _buildToolCard('فاتورة بيع', Icons.add_shopping_cart, Colors.green, () => _openTab('sale_inv', 'فاتورة بيع', Icons.add_shopping_cart, _buildGenericForm('فاتورة بيع جديدة'))),
               _buildToolCard('مردود مبيعات', Icons.remove_shopping_cart, Colors.orange, () => _openTab('sale_ret', 'مردود بيع', Icons.remove_shopping_cart, _buildGenericForm('مردود مبيعات'))),
               _buildToolCard('فاتورة شراء', Icons.shopping_bag, Colors.blue, () => _openTab('buy_inv', 'فاتورة شراء', Icons.shopping_bag, _buildGenericForm('فاتورة شراء جديدة'))),
               _buildToolCard('مردود مشتريات', Icons.assignment_return, Colors.deepOrange, () => _openTab('buy_ret', 'مردود شراء', Icons.assignment_return, _buildGenericForm('مردود مشتريات'))),
@@ -228,7 +221,7 @@ class _ERPWorkspaceScreenState extends State<ERPWorkspaceScreen> {
               _buildToolCard('أرباح المبيعات', Icons.monetization_on, Colors.lightGreen.shade700, () => _openTab('sales_prof', 'أرباح المبيعات', Icons.monetization_on, _buildReportCard('تقرير أرباح المبيعات'))),
               _buildToolCard('أرباح الأصناف', Icons.query_stats, Colors.deepPurple, () => _openTab('item_prof', 'أرباح الأصناف', Icons.query_stats, _buildReportCard('تقرير أرباح الأصناف والتكلفة'))),
               _buildToolCard('حساب المصاريف', Icons.money_off, Colors.red, () => _openTab('exp_acc', 'حساب المصاريف', Icons.money_off, _buildGenericList('دليل وحساب المصاريف'))),
-              _buildToolCard('حساب الإيرادات', Icons.attach_money, Colors.emerald, () => _openTab('inc_acc', 'حساب الإيرادات', Icons.attach_money, _buildGenericList('دليل وحساب الإيرادات'))),
+              _buildToolCard('حساب الإيرادات', Icons.attach_money, Colors.green.shade800, () => _openTab('inc_acc', 'حساب الإيرادات', Icons.attach_money, _buildGenericList('دليل وحساب الإيرادات'))),
             ],
           ),
         ],
@@ -273,7 +266,6 @@ class _ERPWorkspaceScreenState extends State<ERPWorkspaceScreen> {
     );
   }
 
-  // --- واجهات ونماذج داخلية يتم فتحها كـ Tabs ---
   Widget _buildGenericForm(String title) {
     return Padding(
       padding: const EdgeInsets.all(16.0),
@@ -296,7 +288,7 @@ class _ERPWorkspaceScreenState extends State<ERPWorkspaceScreen> {
 
   Widget _buildNotebookTab() {
     return const Padding(
-      padding: const EdgeInsets.all(16.0),
+      padding: EdgeInsets.all(16.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
