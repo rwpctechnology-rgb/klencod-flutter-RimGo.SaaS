@@ -165,7 +165,7 @@ class _ERPWorkspaceScreenState extends State<ERPWorkspaceScreen> {
             crossAxisSpacing: 8,
             mainAxisSpacing: 8,
             children: [
-              _buildToolCard('فاتورة بيع', Icons.add_shopping_cart, Colors.green, () => _openTab('sale_inv', 'فاتورة بيع', Icons.add_shopping_cart, _buildGenericForm('فاتورة بيع جديدة'))),
+              _buildToolCard('فاتورة بيع', Icons.add_shopping_cart, Colors.green, () => _openTab('sale_inv', 'فاتورة بيع', Icons.add_shopping_cart, _buildSaleInvoiceForm())),
               _buildToolCard('مردود مبيعات', Icons.remove_shopping_cart, Colors.orange, () => _openTab('sale_ret', 'مردود بيع', Icons.remove_shopping_cart, _buildGenericForm('مردود مبيعات'))),
               _buildToolCard('فاتورة شراء', Icons.shopping_bag, Colors.blue, () => _openTab('buy_inv', 'فاتورة شراء', Icons.shopping_bag, _buildGenericForm('فاتورة شراء جديدة'))),
               _buildToolCard('مردود مشتريات', Icons.assignment_return, Colors.deepOrange, () => _openTab('buy_ret', 'مردود شراء', Icons.assignment_return, _buildGenericForm('مردود مشتريات'))),
@@ -266,6 +266,129 @@ class _ERPWorkspaceScreenState extends State<ERPWorkspaceScreen> {
     );
   }
 
+  // ==========================================
+  // 1. [تعديل] واجهة فاتورة البيع المتقدمة
+  // ==========================================
+  Widget _buildSaleInvoiceForm() {
+    final TextEditingController clientCtrl = TextEditingController();
+    final TextEditingController itemNoCtrl = TextEditingController();
+    final TextEditingController qtyCtrl = TextEditingController(text: '1');
+    final TextEditingController priceCtrl = TextEditingController();
+
+    return StatefulBuilder(
+      builder: (context, setStateSB) {
+        List<Map<String, dynamic>> itemsList = [];
+
+        return Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: ListView(
+            children: [
+              const Text('فاتورة بيع جديدة', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 12),
+              TextField(controller: clientCtrl, decoration: const InputDecoration(labelText: 'اسم العميل / الحساب', border: OutlineInputBorder())),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(child: TextField(controller: itemNoCtrl, decoration: const InputDecoration(labelText: 'رقم / باركود الصنف', border: OutlineInputBorder()))),
+                  const SizedBox(width: 8),
+                  ElevatedButton.icon(
+                    onPressed: () {
+                      setStateSB(() {
+                        itemNoCtrl.text = "PRD-501";
+                        priceCtrl.text = "75.0";
+                      });
+                    },
+                    icon: const Icon(Icons.qr_code_scanner),
+                    label: const Text('قراءة'),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(child: TextField(controller: qtyCtrl, decoration: const InputDecoration(labelText: 'الكمية', border: OutlineInputBorder()), keyboardType: TextInputType.number)),
+                  const SizedBox(width: 8),
+                  Expanded(child: TextField(controller: priceCtrl, decoration: const InputDecoration(labelText: 'السعر', border: OutlineInputBorder()), keyboardType: TextInputType.number)),
+                ],
+              ),
+              const SizedBox(height: 12),
+              ElevatedButton.icon(
+                onPressed: () {
+                  if (itemNoCtrl.text.isNotEmpty && priceCtrl.text.isNotEmpty) {
+                    setStateSB(() {
+                      itemsList.add({
+                        'code': itemNoCtrl.text,
+                        'qty': qtyCtrl.text,
+                        'price': priceCtrl.text,
+                      });
+                      itemNoCtrl.clear();
+                      priceCtrl.clear();
+                      qtyCtrl.text = '1';
+                    });
+                  }
+                },
+                icon: const Icon(Icons.add),
+                label: const Text('إضافة الصنف للفاتورة'),
+              ),
+              const Divider(height: 30),
+              const Text('الأصناف المضافة:', style: TextStyle(fontWeight: FontWeight.bold)),
+              const SizedBox(height: 8),
+              Container(
+                height: 140,
+                decoration: BoxDecoration(border: Border.all(color: Colors.grey.shade400), borderRadius: BorderRadius.circular(8)),
+                child: itemsList.isEmpty
+                    ? const Center(child: Text('لم يتم إدراج أصناف بعد', style: TextStyle(color: Colors.grey)))
+                    : ListView.builder(
+                        itemCount: itemsList.length,
+                        itemBuilder: (ctx, i) {
+                          final itm = itemsList[i];
+                          return ListTile(
+                            title: Text('الصنف: ${itm['code']}'),
+                            subtitle: Text('الكمية: ${itm['qty']} | السعر: \$${itm['price']}'),
+                            trailing: IconButton(
+                              icon: const Icon(Icons.delete, color: Colors.red),
+                              onPressed: () => setStateSB(() => itemsList.removeAt(i)),
+                            ),
+                          );
+                        },
+                      ),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white),
+                      onPressed: () {
+                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم حفظ فاتورة البيع بنجاح!')));
+                      },
+                      icon: const Icon(Icons.save),
+                      label: const Text('حفظ الفاتورة'),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(backgroundColor: Colors.blue, foregroundColor: Colors.white),
+                      onPressed: () {
+                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('جاري إعداد وتصدير ملف الـ PDF...')));
+                      },
+                      icon: const Icon(Icons.picture_as_pdf),
+                      label: const Text('تصدير PDF'),
+                    ),
+                  ),
+                ],
+              )
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  // ==========================================
+  // 2. النماذج العامة الأخرى
+  // ==========================================
   Widget _buildGenericForm(String title) {
     return Padding(
       padding: const EdgeInsets.all(16.0),
