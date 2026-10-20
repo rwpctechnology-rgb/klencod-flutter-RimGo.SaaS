@@ -1,387 +1,153 @@
 import 'package:flutter/material.dart';
 
 void main() {
-  runApp(const AccountingApp());
+  runApp(const FullERPAccountingApp());
 }
 
-class AccountingApp extends StatelessWidget {
-  const AccountingApp({super.key});
+class FullERPAccountingApp extends StatelessWidget {
+  const FullERPAccountingApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'نظام المحاسبة والصيانة المتكامل',
+      title: 'النظام المحاسبي الشامل',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF1E88E5),
+          seedColor: const Color(0xFF10405A),
           brightness: Brightness.light,
         ),
         useMaterial3: true,
       ),
-      home: const MainHomeScreen(),
+      home: const ERPWorkspaceScreen(),
     );
   }
 }
 
-// --- النماذج (Models) ---
-
-class Account {
-  final String id;
-  final String name;
-  final String phone;
-  double debit; // مدين (له)
-  double credit; // دائن (عليه)
-
-  Account({
-    required this.id,
-    required this.name,
-    required this.phone,
-    this.debit = 0.0,
-    this.credit = 0.0,
-  });
-}
-
-class Product {
-  final String id;
-  final String name;
-  double costPrice;
-  double sellPrice;
-  int quantity;
-
-  Product({
-    required this.id,
-    required this.name,
-    required this.costPrice,
-    required this.sellPrice,
-    required this.quantity,
-  });
-}
-
-class MaintenanceTicket {
-  final String id;
-  final String clientName;
-  final String clientPhone;
-  final String deviceModel;
-  final String issueDescription;
-  String status; // 'قيد الفحص', 'بانتظار قطع غيار', 'تم الإصلاح', 'تم التسليم'
-  double laborCost; // أجور اليد
-  double partsCost; // تكلفة قطع الغيار
-  bool isInvoiced; // هل تحولت لفاتورة
-
-  MaintenanceTicket({
-    required this.id,
-    required this.clientName,
-    required this.clientPhone,
-    required this.deviceModel,
-    required this.issueDescription,
-    this.status = 'قيد الفحص',
-    this.laborCost = 0.0,
-    this.partsCost = 0.0,
-    this.isInvoiced = false,
-  });
-
-  double get totalPrice => laborCost + partsCost;
-}
-
-class TransactionModel {
+// نموذج التبويب المفتوح (Tab Model)
+class OpenTab {
   final String id;
   final String title;
-  final double amount;
-  final String type; // 'قبض', 'صرف', 'فاتورة صيانة', 'بيع'
-  final DateTime date;
+  final IconData icon;
+  final Widget content;
 
-  TransactionModel({
-    required this.id,
-    required this.title,
-    required this.amount,
-    required this.type,
-    required this.date,
-  });
+  OpenTab({required this.id, required this.title, required this.icon, required this.content});
 }
 
-// --- الشاشة الرئيسية ---
-
-class MainHomeScreen extends StatefulWidget {
-  const MainHomeScreen({super.key});
+class ERPWorkspaceScreen extends StatefulWidget {
+  const ERPWorkspaceScreen({super.key});
 
   @override
-  State<MainHomeScreen> createState() => _MainHomeScreenState();
+  State<ERPWorkspaceScreen> createState() => _ERPWorkspaceScreenState();
 }
 
-class _MainHomeScreenState extends State<MainHomeScreen> {
-  int _selectedIndex = 0;
+class _ERPWorkspaceScreenState extends State<ERPWorkspaceScreen> {
+  final List<OpenTab> _openTabs = [];
+  int _activeTabIndex = -1; // -1 تعني الشاشة الرئيسية
 
-  final List<Account> _accounts = [
-    Account(id: '1', name: 'سامر خالد', phone: '0590000000', debit: 250, credit: 0),
-  ];
+  // إضافة/فتح تبويب جديد مثل متصفح كروم
+  void _openNewTab(String id, String title, IconData icon, Widget content) {
+    int existingIndex = _openTabs.indexWhere((tab) => tab.id == id);
+    if (existingIndex != -1) {
+      setState(() => _activeTabIndex = existingIndex);
+    } else {
+      setState(() {
+        _openTabs.add(OpenTab(id: id, title: title, icon: icon, content: content));
+        _activeTabIndex = _openTabs.length - 1;
+      });
+    }
+  }
 
-  final List<Product> _products = [
-    Product(id: '1', name: 'شاشة أيفون 13', costPrice: 40, sellPrice: 65, quantity: 5),
-    Product(id: '2', name: 'بطارية سامسونج S21', costPrice: 15, sellPrice: 25, quantity: 8),
-  ];
-
-  final List<MaintenanceTicket> _tickets = [
-    MaintenanceTicket(
-      id: 'T-1001',
-      clientName: 'سامر خالد',
-      clientPhone: '0590000000',
-      deviceModel: 'iPhone 13 Pro',
-      issueDescription: 'تبديل شاشة مكسورة',
-      status: 'قيد الفحص',
-      laborCost: 20.0,
-      partsCost: 65.0,
-    ),
-  ];
-
-  final List<TransactionModel> _transactions = [];
+  void _closeTab(int index) {
+    setState(() {
+      _openTabs.removeAt(index);
+      if (_activeTabIndex >= _openTabs.length) {
+        _activeTabIndex = _openTabs.length - 1;
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
-    final List<Widget> pages = [
-      _buildDashboardTab(),
-      _buildTicketsTab(),
-      _buildAccountsTab(),
-      _buildProductsTab(),
-      _buildTransactionsTab(),
-    ];
-
     return Scaffold(
       appBar: AppBar(
-        title: const Text('المحاسب الذكي وإدارة الصيانة', style: TextStyle(fontWeight: FontWeight.bold)),
+        title: const Text('لوحة التحكم المحاسبية المتكاملة', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
         centerTitle: true,
-        backgroundColor: Theme.of(context).colorScheme.primaryContainer,
-      ),
-      body: pages[_selectedIndex],
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _selectedIndex,
-        onDestinationSelected: (index) => setState(() => _selectedIndex = index),
-        destinations: const [
-          NavigationDestination(icon: Icon(Icons.dashboard_outlined), selectedIcon: Icon(Icons.dashboard), label: 'الرئيسية'),
-          NavigationDestination(icon: Icon(Icons.build_outlined), selectedIcon: Icon(Icons.build), label: 'الصيانة'),
-          NavigationDestination(icon: Icon(Icons.people_outline), selectedIcon: Icon(Icons.people), label: 'الحسابات'),
-          NavigationDestination(icon: Icon(Icons.inventory_2_outlined), selectedIcon: Icon(Icons.inventory_2), label: 'الأصناف'),
-          NavigationDestination(icon: Icon(Icons.receipt_long_outlined), selectedIcon: Icon(Icons.receipt_long), label: 'الحركات'),
-        ],
-      ),
-    );
-  }
-
-  // 1. لوحة التحكم
-  Widget _buildDashboardTab() {
-    double totalDebit = _accounts.fold(0, (sum, item) => sum + item.debit);
-    double totalCredit = _accounts.fold(0, (sum, item) => sum + item.credit);
-    int activeTickets = _tickets.where((t) => t.status != 'تم التسليم').length;
-
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            children: [
-              Expanded(child: _buildCard('تذاكر الصيانة النشطة', '$activeTickets جهاز', Colors.orange)),
-              const SizedBox(width: 10),
-              Expanded(child: _buildCard('إجمالي المدين (لكم)', '\$${totalDebit.toStringAsFixed(1)}', Colors.green)),
-            ],
-          ),
-          const SizedBox(height: 10),
-          _buildCard('إجمالي الدائن (عليكم)', '\$${totalCredit.toStringAsFixed(1)}', Colors.red),
-          const SizedBox(height: 20),
-          const Text('تذاكر الصيانة الحالية', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 10),
-          ListView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: _tickets.length,
-            itemBuilder: (ctx, idx) => _buildTicketCard(_tickets[idx]),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildCard(String title, String val, Color col) {
-    return Card(
-      elevation: 2,
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          children: [
-            Text(title, style: const TextStyle(fontSize: 13, color: Colors.grey)),
-            const SizedBox(height: 6),
-            Text(val, style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: col)),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // 2. شاشة تذاكر الصيانة
-  Widget _buildTicketsTab() {
-    return Scaffold(
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _addNewTicketDialog,
-        icon: const Icon(Icons.add_to_photos),
-        label: const Text('تذكرة صيانة جديدة'),
-      ),
-      body: ListView.builder(
-        padding: const EdgeInsets.all(8.0),
-        itemCount: _tickets.length,
-        itemBuilder: (ctx, idx) => _buildTicketCard(_tickets[idx]),
-      ),
-    );
-  }
-
-  Widget _buildTicketCard(MaintenanceTicket ticket) {
-    return Card(
-      elevation: 3,
-      margin: const EdgeInsets.symmetric(vertical: 6),
-      child: ExpansionTile(
-        leading: CircleAvatar(
-          backgroundColor: ticket.isInvoiced ? Colors.green.shade100 : Colors.orange.shade100,
-          child: Icon(ticket.isInvoiced ? Icons.check_circle : Icons.build,
-              color: ticket.isInvoiced ? Colors.green : Colors.orange),
-        ),
-        title: Text('${ticket.deviceModel} - ${ticket.clientName}', style: const TextStyle(fontWeight: FontWeight.bold)),
-        subtitle: Text('الحالة: ${ticket.status} | الإجمالي: \$${ticket.totalPrice}'),
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(12.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('رقم التذكرة: ${ticket.id}'),
-                Text('رقم العميل: ${ticket.clientPhone}'),
-                Text('الوصف/المشكلة: ${ticket.issueDescription}'),
-                Text('تكلفة قطع الغيار: \$${ticket.partsCost}'),
-                Text('أجور الصيانة (اليد): \$${ticket.laborCost}'),
-                const Divider(),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    DropdownButton<String>(
-                      value: ticket.status,
-                      items: ['قيد الفحص', 'بانتظار قطع غيار', 'تم الإصلاح', 'تم التسليم']
-                          .map((s) => DropdownMenuItem(value: s, child: Text(s)))
-                          .toList(),
-                      onChanged: (val) {
-                        if (val != null) setState(() => ticket.status = val);
-                      },
-                    ),
-                    if (!ticket.isInvoiced)
-                      ElevatedButton.icon(
-                        style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white),
-                        onPressed: () => _convertTicketToInvoice(ticket),
-                        icon: const Icon(Icons.receipt),
-                        label: const Text('تحويل إلى فاتورة'),
-                      )
-                    else
-                      const Chip(label: Text('تم الفوترة'), backgroundColor: Colors.greenAccent),
-                  ],
-                )
-              ],
-            ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.home),
+            onPressed: () => setState(() => _activeTabIndex = -1),
+            tooltip: 'الواجهة الرئيسية',
           )
         ],
       ),
-    );
-  }
-
-  void _convertTicketToInvoice(MaintenanceTicket ticket) {
-    setState(() {
-      ticket.isInvoiced = true;
-      ticket.status = 'تم التسليم';
-      _transactions.add(TransactionModel(
-        id: DateTime.now().toString(),
-        title: 'فاتورة صيانة: ${ticket.deviceModel} (${ticket.clientName})',
-        amount: ticket.totalPrice,
-        type: 'فاتورة صيانة',
-        date: DateTime.now(),
-      ));
-
-      // إضافة المبلغ لمدين العميل تلقائياً
-      var acc = _accounts.firstWhere((a) => a.name == ticket.clientName,
-          orElse: () => Account(id: DateTime.now().toString(), name: ticket.clientName, phone: ticket.clientPhone));
-      acc.debit += ticket.totalPrice;
-      if (!_accounts.contains(acc)) _accounts.add(acc);
-    });
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('تم تحويل التذكرة ${ticket.id} إلى فاتورة وإضافتها لحساب العميل!')),
-    );
-  }
-
-  void _addNewTicketDialog() {
-    final nameCtrl = TextEditingController();
-    final phoneCtrl = TextEditingController();
-    final modelCtrl = TextEditingController();
-    final issueCtrl = TextEditingController();
-    final partsCtrl = TextEditingController();
-    final laborCtrl = TextEditingController();
-
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('إضافة تذكرة صيانة جديد'),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(controller: nameCtrl, decoration: const InputDecoration(labelText: 'اسم العميل')),
-              TextField(controller: phoneCtrl, decoration: const InputDecoration(labelText: 'رقم الهاتف'), keyboardType: TextInputType.phone),
-              TextField(controller: modelCtrl, decoration: const InputDecoration(labelText: 'نوع/موديل الجهاز')),
-              TextField(controller: issueCtrl, decoration: const InputDecoration(labelText: 'وصف العطل')),
-              TextField(controller: partsCtrl, decoration: const InputDecoration(labelText: 'تكلفة قطع الغيار'), keyboardType: TextInputType.number),
-              TextField(controller: laborCtrl, decoration: const InputDecoration(labelText: 'أجور اليد / الصيانة'), keyboardType: TextInputType.number),
-            ],
+      body: Column(
+        children: [
+          // عرض المحتوى الحالي (إما الرئيسية أو التبويب المفتوح)
+          Expanded(
+            child: _activeTabIndex == -1 || _openTabs.isEmpty
+                ? _buildMainDashboard()
+                : _openTabs[_activeTabIndex].content,
           ),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
-          ElevatedButton(
-            onPressed: () {
-              if (nameCtrl.text.isNotEmpty && modelCtrl.text.isNotEmpty) {
-                setState(() {
-                  _tickets.add(MaintenanceTicket(
-                    id: 'T-${1000 + _tickets.length + 1}',
-                    clientName: nameCtrl.text,
-                    clientPhone: phoneCtrl.text,
-                    deviceModel: modelCtrl.text,
-                    issueDescription: issueCtrl.text,
-                    partsCost: double.tryParse(partsCtrl.text) ?? 0.0,
-                    laborCost: double.tryParse(laborCtrl.text) ?? 0.0,
-                  ));
-                });
-                Navigator.pop(ctx);
-              }
-            },
-            child: const Text('حفظ التذكرة'),
-          ),
+
+          // شريط التبويبات السفلي المميز (Chrome-like Tab Bar)
+          if (_openTabs.isNotEmpty) _buildBottomTabBar(),
         ],
       ),
     );
   }
 
-  // 3. باقي الشاشات (الحسابات، الأصناف، الحركات)
-  Widget _buildAccountsTab() {
-    return Scaffold(
-      body: ListView.builder(
-        padding: const EdgeInsets.all(8.0),
-        itemCount: _accounts.length,
+  // --- شريط التبويبات المفتوحة في الأسفل ---
+  Widget _buildBottomTabBar() {
+    return Container(
+      height: 48,
+      color: Colors.grey.shade200,
+      child: ListView.builder(
+        scrollDirection: Axis.horizontal,
+        itemCount: _openTabs.length + 1,
         itemBuilder: (ctx, idx) {
-          final acc = _accounts[idx];
-          return Card(
-            child: ListTile(
-              title: Text(acc.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-              subtitle: Text('هاتف: ${acc.phone}'),
-              trailing: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text('له (مدين): \$${acc.debit}', style: const TextStyle(color: Colors.green, fontSize: 12)),
-                  Text('عليه (دائن): \$${acc.credit}', style: const TextStyle(color: Colors.red, fontSize: 12)),
-                ],
+          if (idx == 0) {
+            return InkWell(
+              onTap: () => setState(() => _activeTabIndex = -1),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                color: _activeTabIndex == -1 ? Colors.white : Colors.transparent,
+                child: const Row(
+                  children: [
+                    Icon(Icons.grid_view, size: 18),
+                    SizedBox(width: 6),
+                    Text('الرئيسية', style: TextStyle(fontWeight: FontWeight.bold)),
+                  ],
+                ),
+              ),
+            );
+          }
+          final tabIdx = idx - 1;
+          final tab = _openTabs[tabIdx];
+          final isActive = _activeTabIndex == tabIdx;
+
+          return Container(
+            margin: const EdgeInsets.only(right: 2, top: 4),
+            decoration: BoxDecoration(
+              color: isActive ? Colors.white : Colors.grey.shade300,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
+            ),
+            child: InkWell(
+              onTap: () => setState(() => _activeTabIndex = tabIdx),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+                child: Row(
+                  children: [
+                    Icon(tab.icon, size: 16, color: isActive ? Theme.of(context).primaryColor : Colors.black54),
+                    const SizedBox(width: 6),
+                    Text(tab.title, style: TextStyle(fontWeight: isActive ? FontWeight.bold : FontWeight.normal)),
+                    const SizedBox(width: 6),
+                    InkWell(
+                      onTap: () => _closeTab(tabIdx),
+                      child: const Icon(Icons.close, size: 16, color: Colors.grey),
+                    )
+                  ],
+                ),
               ),
             ),
           );
@@ -390,41 +156,219 @@ class _MainHomeScreenState extends State<MainHomeScreen> {
     );
   }
 
-  Widget _buildProductsTab() {
-    return Scaffold(
-      body: ListView.builder(
-        padding: const EdgeInsets.all(8.0),
-        itemCount: _products.length,
-        itemBuilder: (ctx, idx) {
-          final prod = _products[idx];
-          return Card(
-            child: ListTile(
-              title: Text(prod.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-              subtitle: Text('تكلفة: \$${prod.costPrice} | بيع: \$${prod.sellPrice}'),
-              trailing: Chip(label: Text('المتوفر: ${prod.quantity}')),
-            ),
-          );
-        },
+  // --- الواجهة الرئيسية الجامعة لكل الأدوات والتحكم ---
+  Widget _buildMainDashboard() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(12.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildSectionHeader('الفواتير والتجارة', Icons.point_of_sale),
+          GridView.count(
+            crossAxisCount: 2,
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            childAspectRatio: 2.2,
+            crossAxisSpacing: 8,
+            mainAxisSpacing: 8,
+            children: [
+              _buildToolCard('فاتورة بيع', Icons.add_shopping_cart, Colors.green, () => _openTab('sale_inv', 'فاتورة بيع', Icons.add_shopping_cart, _buildGenericForm('فاتورة بيع جديده'))),
+              _buildToolCard('مردود مبيعات', Icons.remove_shopping_cart, Colors.orange, () => _openTab('sale_ret', 'مردود بيع', Icons.remove_shopping_cart, _buildGenericForm('مردود مبيعات'))),
+              _buildToolCard('فاتورة شراء', Icons.shopping_bag, Colors.blue, () => _openTab('buy_inv', 'فاتورة شراء', Icons.shopping_bag, _buildGenericForm('فاتورة شراء جديدة'))),
+              _buildToolCard('مردود مشتريات', Icons.assignment_return, Colors.deepOrange, () => _openTab('buy_ret', 'مردود شراء', Icons.assignment_return, _buildGenericForm('مردود مشتريات'))),
+            ],
+          ),
+          const SizedBox(height: 16),
+
+          _buildSectionHeader('السندات والمالية', Icons.account_balance_wallet),
+          GridView.count(
+            crossAxisCount: 2,
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            childAspectRatio: 2.2,
+            crossAxisSpacing: 8,
+            mainAxisSpacing: 8,
+            children: [
+              _buildToolCard('سند قبض', Icons.arrow_downward, Colors.teal, () => _openTab('rec_v', 'سند قبض', Icons.arrow_downward, _buildGenericForm('سند قبض جديد'))),
+              _buildToolCard('سند صرف', Icons.arrow_upward, Colors.redAccent, () => _openTab('pay_v', 'سند صرف', Icons.arrow_upward, _buildGenericForm('سند صرف جديد'))),
+              _buildToolCard('شيكات واردة', Icons.subtitles, Colors.indigo, () => _openTab('chq_in', 'شيكات واردة', Icons.subtitles, _buildGenericList('سجل الشيكات الواردة'))),
+              _buildToolCard('شيكات صادرة', Icons.confirmation_number, Colors.brown, () => _openTab('chq_out', 'شيكات صادرة', Icons.confirmation_number, _buildGenericList('سجل الشيكات الصادرة'))),
+            ],
+          ),
+          const SizedBox(height: 16),
+
+          _buildSectionHeader('الصيانة والأدلة والملاحظات', Icons.build_circle),
+          GridView.count(
+            crossAxisCount: 2,
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            childAspectRatio: 2.2,
+            crossAxisSpacing: 8,
+            mainAxisSpacing: 8,
+            children: [
+              _buildToolCard('أوامر الصيانه', Icons.build, Colors.amber.shade800, () => _openTab('maint', 'أوامر الصيانه', Icons.build, _buildGenericList('أوامر وتذاكر الصيانة'))),
+              _buildToolCard('دفتر الملاحظات', Icons.note_alt, Colors.purple, () => _openTab('notes', 'دفتر الملاحظات', Icons.note_alt, _buildNotebookTab())),
+              _buildToolCard('شجرة الحسابات', Icons.account_tree, Colors.blueGrey, () => _openTab('acc_tree', 'شجرة الحسابات', Icons.account_tree, _buildGenericTree('شجرة دليل الحسابات'))),
+              _buildToolCard('شجرة الأصناف', Icons.category, Colors.cyan.shade700, () => _openTab('item_tree', 'شجرة الأصناف', Icons.category, _buildGenericTree('شجرة دليل الأصناف'))),
+            ],
+          ),
+          const SizedBox(height: 16),
+
+          _buildSectionHeader('التقارير والأرباح والحسابات', Icons.analytics),
+          GridView.count(
+            crossAxisCount: 2,
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            childAspectRatio: 2.2,
+            crossAxisSpacing: 8,
+            mainAxisSpacing: 8,
+            children: [
+              _buildToolCard('كشف حساب', Icons.receipt_long, Colors.blue, () => _openTab('stmt', 'كشف حساب', Icons.receipt_long, _buildGenericList('كشف حساب تفصيلي'))),
+              _buildToolCard('حركة الأصناف', Icons.inventory, Colors.green, () => _openTab('item_mov', 'حركة الأصناف', Icons.inventory, _buildGenericList('تقرير حركة المخزون'))),
+              _buildToolCard('أرباح المبيعات', Icons.monetization_on, Colors.lightGreen.shade700, () => _openTab('sales_prof', 'أرباح المبيعات', Icons.monetization_on, _buildReportCard('تقرير أرباح المبيعات'))),
+              _buildToolCard('أرباح الأصناف', Icons.query_stats, Colors.deepPurple, () => _openTab('item_prof', 'أرباح الأصناف', Icons.query_stats, _buildReportCard('تقرير أرباح الأصناف والتكلفة'))),
+              _buildToolCard('حساب المصاريف', Icons.money_off, Colors.red, () => _openTab('exp_acc', 'حساب المصاريف', Icons.money_off, _buildGenericList('دليل وحساب المصاريف'))),
+              _buildToolCard('حساب الإيرادات', Icons.attach_money, Colors.emerald, () => _openTab('inc_acc', 'حساب الإيرادات', Icons.attach_money, _buildGenericList('دليل وحساب الإيرادات'))),
+            ],
+          ),
+        ],
       ),
     );
   }
 
-  Widget _buildTransactionsTab() {
-    return Scaffold(
-      body: ListView.builder(
-        padding: const EdgeInsets.all(8.0),
-        itemCount: _transactions.length,
-        itemBuilder: (ctx, idx) {
-          final tx = _transactions[idx];
-          return Card(
-            child: ListTile(
-              leading: const Icon(Icons.receipt, color: Colors.blue),
-              title: Text(tx.title),
-              subtitle: Text('النوع: ${tx.type}'),
-              trailing: Text('\$${tx.amount.toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.green)),
+  void _openTab(String id, String title, IconData icon, Widget content) {
+    _openNewTab(id, title, icon, content);
+  }
+
+  Widget _buildSectionHeader(String title, IconData icon) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8.0),
+      child: Row(
+        children: [
+          Icon(icon, color: Theme.of(context).primaryColor, size: 20),
+          const SizedBox(width: 8),
+          Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildToolCard(String title, IconData icon, Color color, VoidCallback onTap) {
+    return Card(
+      elevation: 2,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(8),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          child: Row(
+            children: [
+              CircleAvatar(backgroundColor: color.withOpacity(0.15), radius: 18, child: Icon(icon, color: color, size: 20)),
+              const SizedBox(width: 8),
+              Expanded(child: Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13), overflow: TextOverflow.ellipsis)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // --- واجهات ونماذج داخلية يتم فتحها كـ Tabs ---
+  Widget _buildGenericForm(String title) {
+    return Padding(
+      padding: const EdgeInsets.all(16.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 16),
+          const TextField(decoration: InputDecoration(labelText: 'اسم الحساب / العميل', border: OutlineInputBorder())),
+          const SizedBox(height: 12),
+          const TextField(decoration: InputDecoration(labelText: 'المبلغ / القيمة', border: OutlineInputBorder()), keyboardType: TextInputType.number),
+          const SizedBox(height: 12),
+          const TextField(decoration: InputDecoration(labelText: 'البيان / ملاحظات', border: OutlineInputBorder()), maxLines: 2),
+          const SizedBox(height: 20),
+          ElevatedButton.icon(onPressed: () {}, icon: const Icon(Icons.save), label: const Text('حفظ واحتساب')),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNotebookTab() {
+    return const Padding(
+      padding: const EdgeInsets.all(16.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('دفتر الملاحظات والمهام', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+          SizedBox(height: 12),
+          Expanded(
+            child: TextField(
+              maxLines: null,
+              expands: true,
+              decoration: InputDecoration(
+                hintText: 'اكتب ملاحظات الصيانة، الديون المتبقية، أو تذكيرات العمل هنا...',
+                border: OutlineInputBorder(),
+              ),
             ),
-          );
-        },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildGenericList(String title) {
+    return ListView.builder(
+      padding: const EdgeInsets.all(12),
+      itemCount: 5,
+      itemBuilder: (ctx, idx) => Card(
+        child: ListTile(
+          leading: const Icon(Icons.receipt),
+          title: Text('$title #${idx + 101}'),
+          subtitle: const Text('التاريخ: 2026/10/20 - الحالة: مكتمل'),
+          trailing: const Text('\$150.00', style: TextStyle(fontWeight: FontWeight.bold)),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildGenericTree(String title) {
+    return ListView(
+      padding: const EdgeInsets.all(12),
+      children: [
+        Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+        const Divider(),
+        const ExpansionTile(
+          title: Text('1. الأصول (Assets)'),
+          children: [
+            ListTile(title: Text('11. الصندوق والبنك')),
+            ListTile(title: Text('12. الذمم المدينة (العملاء)')),
+          ],
+        ),
+        const ExpansionTile(
+          title: Text('2. الخصومات (Liabilities)'),
+          children: [
+            ListTile(title: Text('21. الموردين (الدائنون)')),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildReportCard(String title) {
+    return Padding(
+      padding: const EdgeInsets.all(16.0),
+      child: Column(
+        children: [
+          Card(
+            color: Colors.blue.shade50,
+            child: ListTile(
+              title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
+              subtitle: const Text('إجمالي صافي الأرباح المحسوبة لهذا الشهر'),
+              trailing: const Text('\$3,450.00', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.green)),
+            ),
+          )
+        ],
       ),
     );
   }
