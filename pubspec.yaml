@@ -1,5 +1,5 @@
-name: rimgosaas
-description: A professional task manager and ERP system
+name: rimgo_saas
+description: Professional Accounting, Sales, and Inventory ERP SaaS System.
 publish_to: 'none'
 version: 1.0.0+1
 
@@ -9,6 +9,23 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+  flutter_riverpod: ^2.4.9
+  intl: ^0.18.1
+  shared_preferences: ^2.2.2
+  path_provider: ^2.1.1
+  pdf: ^3.10.4
+  printing: ^5.11.0
+  qr_code_scanner: ^1.0.1
+  uuid: ^4.2.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
 
 flutter:
   uses-material-design: true
+  generate: true
+  
