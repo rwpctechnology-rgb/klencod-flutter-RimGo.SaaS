@@ -95,42 +95,40 @@ class _CashScreenState extends State<CashScreen> {
             ),
             const SizedBox(height: 10),
 
-            ElevatedButton.styleFrom(
-              backgroundColor: Colors.green,
-              foregroundColor: Colors.white,
-            ).wrap(
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white),
-                  onPressed: () {
-                    double amount = double.tryParse(amountCtrl.text) ?? 0.0;
-                    if (titleCtrl.text.isNotEmpty && amount > 0) {
-                      setState(() {
-                        if (transactionType == 'receipt') {
-                          cashBoxBalance += amount;
-                        } else {
-                          cashBoxBalance -= amount;
-                        }
-
-                        cashTransactions.insert(0, {
-                          'title': titleCtrl.text,
-                          'amount': amount,
-                          'type': transactionType,
-                          'date': DateTime.now().toString().substring(0, 10),
-                        });
-
-                        titleCtrl.clear();
-                        amountCtrl.clear();
-                      });
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('تم تسجيل الحركة النقدية وتحديث الصندوق بنجاح!')),
-                      );
-                    }
-                  },
-                  icon: const Icon(Icons.save),
-                  label: const Text('حفظ وتسجيل الحركة المالية'),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.green,
+                  foregroundColor: Colors.white,
                 ),
+                onPressed: () {
+                  double amount = double.tryParse(amountCtrl.text) ?? 0.0;
+                  if (titleCtrl.text.isNotEmpty && amount > 0) {
+                    setState(() {
+                      if (transactionType == 'receipt') {
+                        cashBoxBalance += amount;
+                      } else {
+                        cashBoxBalance -= amount;
+                      }
+
+                      cashTransactions.insert(0, {
+                        'title': titleCtrl.text,
+                        'amount': amount,
+                        'type': transactionType,
+                        'date': DateTime.now().toString().substring(0, 10),
+                      });
+
+                      titleCtrl.clear();
+                      amountCtrl.clear();
+                    });
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('تم تسجيل الحركة النقدية وتحديث الصندوق بنجاح!')),
+                    );
+                  }
+                },
+                icon: const Icon(Icons.save),
+                label: const Text('حفظ وتسجيل الحركة المالية'),
               ),
             ),
 
@@ -171,8 +169,4 @@ class _CashScreenState extends State<CashScreen> {
       ),
     );
   }
-}
-
-extension on ButtonStyle {
-  Widget wrap(Widget child) => child;
 }
