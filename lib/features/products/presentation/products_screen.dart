@@ -1,144 +1,271 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import '../../../core/services/database_service.dart';
 
-class ProductsScreen extends StatefulWidget {
-  const ProductsScreen({super.key});
+class PurchaseScreen extends StatefulWidget {
+  const PurchaseScreen({super.key});
 
   @override
-  State<ProductsScreen> createState() => _ProductsScreenState();
+  State<PurchaseScreen> createState() => _PurchaseScreenState();
 }
 
-class _ProductsScreenState extends State<ProductsScreen> {
+class _PurchaseScreenState extends State<PurchaseScreen> {
   List<Map<String, dynamic>> products = [];
-  final TextEditingController codeCtrl = TextEditingController();
-  final TextEditingController nameCtrl = TextEditingController();
-  final TextEditingController priceCtrl = TextEditingController();
-  final TextEditingController stockCtrl = TextEditingController();
+  List<Map<String, dynamic>> parties = [];
+  
+  Map<String, dynamic>? selectedSupplier;
+  Map<String, dynamic>? selectedProduct;
+
+  final TextEditingController barcodeCtrl = TextEditingController();
+  final TextEditingController qtyCtrl = TextEditingController(text: '1');
+  final TextEditingController costCtrl = TextEditingController();
+
+  final List<Map<String, dynamic>> purchaseItems = [];
+  String paymentType = 'cash'; // 'cash' نقداً من الصندوق أو 'credit' أُجل على المورد
 
   @override
   void initState() {
     super.initState();
-    _loadProducts();
+    _loadData();
   }
 
-  Future<void> _loadProducts() async {
-    final prefs = await SharedPreferences.getInstance();
-    String? pStr = prefs.getString('rimgo_products');
-    if (pStr != null) {
-      setState(() {
-        products = List<Map<String, dynamic>>.from(jsonDecode(pStr));
-      });
-    } else {
-      setState(() {
-        products = [
-          {'code': '101', 'name': 'حقيبة لابتوب', 'price': 35.0, 'stock': 10},
-          {'code': '102', 'name': 'شاحن سريع 65W', 'price': 15.0, 'stock': 25},
-          {'code': '103', 'name': 'ماوس لاسلكي', 'price': 8.0, 'stock': 40},
-        ];
-      });
+  Future<void> _loadData() async {
+    var pList = await DatabaseService.getProducts();
+    var ptList = await DatabaseService.getParties();
+    setState(() {
+      products = pList;
+      parties = ptList.where((p) => p['type'] == 'supplier' || p['type'] == 'customer').toList();
+      if (parties.isNotEmpty) selectedSupplier = parties.first;
+    });
+  }
+
+  void _addProductToPurchase() {
+    String code = barcodeCtrl.text.trim();
+    int qty = int.tryParse(qtyCtrl.text) ?? 1;
+    double cost = double.tryParse(costCtrl.text) ?? 0.0;
+
+    if (code.isEmpty || cost <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('الرجاء إدخال الباركود وسعر الشراء الصحيح!'), backgroundColor: Colors.red),
+      );
+      return;
     }
+
+    var prodMatch = products.firstWhere((p) => p['code'] == code, orElse: () => {});
+    String prodName = prodMatch.isNotEmpty ? prodMatch['name'] : 'صنف جديد ($code)';
+
+    setState(() {
+      purchaseItems.add({
+        'code': code,
+        'name': prodName,
+        'qty': qty,
+        'cost': cost,
+      });
+      barcodeCtrl.clear();
+      costCtrl.clear();
+      qtyCtrl.text = '1';
+      selectedProduct = null;
+    });
   }
 
-  Future<void> _saveProducts() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('rimgo_products', jsonEncode(products));
+  Future<void> _savePurchaseInvoice() async {
+    if (purchaseItems.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('أضف أصناف لفاتورة الشراء أولاً!'), backgroundColor: Colors.orange),
+      );
+      return;
+    }
+
+    double totalCost = purchaseItems.fold(0, (sum, item) => sum + (item['qty'] * item['cost']));
+
+    // 1. زيادة كميات المخزون للأصناف الواردة
+    for (var item in purchaseItems) {
+      int idx = products.indexWhere((p) => p['code'] == item['code']);
+      if (idx != -1) {
+        products[idx]['stock'] = (products[idx]['stock'] as int) + (item['qty'] as int);
+        products[idx]['price'] = item['cost'] * 1.25; // تحديث سعر البيع تلقائياً بهامش 25% مثلاً
+      } else {
+        // إضافة صنف جديد كلياً للمخزون إذا لم يكن موجوداً
+        products.add({
+          'code': item['code'],
+          'name': item['name'],
+          'price': item['cost'] * 1.25,
+          'stock': item['qty'],
+        });
+      }
+    }
+    await DatabaseService.saveProducts(products);
+
+    // 2. تحديث رصيد المورد (إذا كان الشراء بالآجل يزيد الدين للمورد)
+    if (paymentType == 'credit' && selectedSupplier != null) {
+      int pIdx = parties.indexWhere((pt) => pt['name'] == selectedSupplier!['name']);
+      if (pIdx != -1) {
+        double currentBal = (parties[pIdx]['balance'] as num).toDouble();
+        parties[pIdx]['balance'] = currentBal - totalCost; // رصيد سالب يعني مستحق للمورد
+      }
+      await DatabaseService.saveParties(parties);
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('تم حفظ فاتورة الشراء وتحديث المخزون بنجاح بقيمة \$$totalCost!')),
+    );
+
+    setState(() {
+      purchaseItems.clear();
+    });
   }
 
   @override
   Widget build(BuildContext context) {
+    double totalInvoice = purchaseItems.fold(0, (sum, item) => sum + (item['qty'] * item['cost']));
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text('إدارة الأصناف والمخزون'),
+        title: const Text('فاتورة شراء بضاعة (الموردين)'),
         backgroundColor: Colors.blue.shade800,
         foregroundColor: Colors.white,
       ),
       body: Padding(
-        padding: const EdgeInsets.all(16.0),
+        padding: const EdgeInsets.all(14.0),
         child: Column(
           children: [
+            // اختيار المورد وطريقة الدفع
             Card(
-              elevation: 2,
               child: Padding(
-                padding: const EdgeInsets.all(12.0),
+                padding: const EdgeInsets.all(10.0),
                 child: Column(
                   children: [
-                    const Text('إضافة صنف جديد', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                    const SizedBox(height: 8),
+                    DropdownButtonFormField<Map<String, dynamic>>(
+                      value: selectedSupplier,
+                      decoration: const InputDecoration(labelText: 'اختر المورد / التاجر', border: OutlineInputBorder()),
+                      items: parties.map((p) {
+                        return DropdownMenuItem(
+                          value: p,
+                          child: Text('${p['name']} (${p['type'] == 'supplier' ? "مورد" : "عميل"})'),
+                        );
+                      }).toList(),
+                      onChanged: (val) => setState(() => selectedSupplier = val),
+                    ),
                     Row(
                       children: [
-                        Expanded(child: TextField(controller: codeCtrl, decoration: const InputDecoration(labelText: 'الباركوُد', border: OutlineInputBorder()))),
-                        const SizedBox(width: 8),
-                        Expanded(child: TextField(controller: nameCtrl, decoration: const InputDecoration(labelText: 'اسم الصنف', border: OutlineInputBorder()))),
+                        Expanded(
+                          child: RadioListTile<String>(
+                            title: const Text('نقداً (من الصندوق)'),
+                            value: 'cash',
+                            groupValue: paymentType,
+                            onChanged: (val) => setState(() => paymentType = val!),
+                          ),
+                        ),
+                        Expanded(
+                          child: RadioListTile<String>(
+                            title: const Text('بالآجل (على المورد)'),
+                            value: 'credit',
+                            groupValue: paymentType,
+                            onChanged: (val) => setState(() => paymentType = val!),
+                          ),
+                        ),
                       ],
-                    ),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        Expanded(child: TextField(controller: priceCtrl, decoration: const InputDecoration(labelText: 'سعر البيع', border: OutlineInputBorder()), keyboardType: TextInputType.number)),
-                        const SizedBox(width: 8),
-                        Expanded(child: TextField(controller: stockCtrl, decoration: const InputDecoration(labelText: 'الكمية بالمخزن', border: OutlineInputBorder()), keyboardType: TextInputType.number)),
-                      ],
-                    ),
-                    const SizedBox(height: 10),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton.icon(
-                        style: ElevatedButton.styleFrom(backgroundColor: Colors.green.shade700, foregroundColor: Colors.white),
-                        onPressed: () {
-                          if (nameCtrl.text.isNotEmpty && priceCtrl.text.isNotEmpty) {
-                            setState(() {
-                              products.add({
-                                'code': codeCtrl.text.isEmpty ? '10${products.length + 1}' : codeCtrl.text,
-                                'name': nameCtrl.text,
-                                'price': double.tryParse(priceCtrl.text) ?? 0.0,
-                                'stock': int.tryParse(stockCtrl.text) ?? 0,
-                              });
-                              codeCtrl.clear();
-                              nameCtrl.clear();
-                              priceCtrl.clear();
-                              stockCtrl.clear();
-                            });
-                            _saveProducts();
-                            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تمت إضافة الصنف بنجاح!')));
-                          }
-                        },
-                        icon: const Icon(Icons.add_box),
-                        label: const Text('حفظ الصنف'),
-                      ),
                     ),
                   ],
                 ),
               ),
             ),
-            const SizedBox(height: 12),
-            Expanded(
-              child: ListView.builder(
-                itemCount: products.length,
-                itemBuilder: (ctx, i) {
-                  var p = products[i];
-                  return Card(
-                    child: ListTile(
-                      leading: const Icon(Icons.inventory_2, color: Colors.blue),
-                      title: Text(p['name'], style: const TextStyle(fontWeight: FontWeight.bold)),
-                      subtitle: Text('باركود: ${p['code']} | السعر: \$${p['price']}'),
-                      trailing: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: (p['stock'] as int) < 5 ? Colors.red.shade100 : Colors.green.shade100,
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Text(
-                          'المخزون: ${p['stock']}',
-                          style: TextStyle(
-                            color: (p['stock'] as int) < 5 ? Colors.red : Colors.green.shade900,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
+            const SizedBox(height: 10),
+
+            // إدخال الصنف والشراء
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(10.0),
+                child: Column(
+                  children: [
+                    DropdownButtonFormField<Map<String, dynamic>>(
+                      value: selectedProduct,
+                      decoration: const InputDecoration(labelText: 'اختر من أصناف المخزون', border: OutlineInputBorder()),
+                      items: products.map((p) {
+                        return DropdownMenuItem(
+                          value: p,
+                          child: Text('${p['name']} [باركود: ${p['code']}]'),
+                        );
+                      }).toList(),
+                      onChanged: (val) {
+                        if (val != null) {
+                          setState(() {
+                            selectedProduct = val;
+                            barcodeCtrl.text = val['code'];
+                            costCtrl.text = val['price'].toString();
+                          });
+                        }
+                      },
                     ),
-                  );
-                },
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Expanded(child: TextField(controller: barcodeCtrl, decoration: const InputDecoration(labelText: 'الباركود', border: OutlineInputBorder()))),
+                        const SizedBox(width: 8),
+                        Expanded(child: TextField(controller: costCtrl, decoration: const InputDecoration(labelText: 'سعر الشراء الإفرادي', border: OutlineInputBorder()), keyboardType: TextInputType.number)),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Expanded(child: TextField(controller: qtyCtrl, decoration: const InputDecoration(labelText: 'الكمية الواردة', border: OutlineInputBorder()), keyboardType: TextInputType.number)),
+                        const SizedBox(width: 8),
+                        ElevatedButton.icon(
+                          style: ElevatedButton.styleFrom(backgroundColor: Colors.teal, foregroundColor: Colors.white),
+                          onPressed: _addProductToPurchase,
+                          icon: const Icon(Icons.add),
+                          label: const Text('إضافة للقائمة'),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
+
+            // قائمة الأصناف المضافة لفاتورة الشراء
+            Expanded(
+              child: Container(
+                decoration: BoxDecoration(border: Border.all(color: Colors.grey.shade300), borderRadius: BorderRadius.circular(8)),
+                child: purchaseItems.isEmpty
+                    ? const Center(child: Text('لم يتم إدراج أصناف لفاتورة الشراء بعد'))
+                    : ListView.builder(
+                        itemCount: purchaseItems.length,
+                        itemBuilder: (ctx, i) {
+                          var item = purchaseItems[i];
+                          double total = item['qty'] * item['cost'];
+                          return ListTile(
+                            title: Text(item['name']),
+                            subtitle: Text('الكمية: ${item['qty']} | سعر الشراء: \$${item['cost']}'),
+                            trailing: Text('\$$total', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.green)),
+                          );
+                        },
+                      ),
+              ),
+            ),
+            const SizedBox(height: 10),
+
+            // الإجمالي وزر الحفظ
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(8)),
+              child: Text(
+                'إجمالي فاتورة الشراء: \$${totalInvoice.toStringAsFixed(2)}',
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.blue),
+                textAlign: TextAlign.center,
+              ),
+            ),
+            const SizedBox(height: 10),
+
+            SizedBox(
+              width: double.infinity,
+              height: 48,
+              child: ElevatedButton.styleFrom(backgroundColor: Colors.green.shade700, foregroundColor: Colors.white).wrap(
+                ElevatedButton.icon(
+                  onPressed: _savePurchaseInvoice,
+                  icon: const Icon(Icons.save),
+                  label: const Text('حفظ فاتورة الشراء وتحديث المخزون'),
+                ),
               ),
             ),
           ],
