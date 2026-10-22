@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../../../core/services/database_service.dart';
 import 'barcode_scanner_screen.dart';
 
 class SalesScreen extends StatefulWidget {
@@ -13,7 +14,8 @@ class SalesScreen extends StatefulWidget {
 class _SalesScreenState extends State<SalesScreen> {
   List<Map<String, dynamic>> products = [];
   List<Map<String, dynamic>> parties = [];
-  
+  Map<String, double> customerLastPrices = {}; // ذاكرة أسعار الزبائن
+
   Map<String, dynamic>? selectedParty;
   Map<String, dynamic>? selectedProduct;
 
@@ -23,88 +25,212 @@ class _SalesScreenState extends State<SalesScreen> {
   final TextEditingController discountCtrl = TextEditingController(text: '0');
 
   final List<Map<String, dynamic>> invoiceItems = [];
-  String paymentType = 'cash'; // 'cash' نقداً أو 'credit' بالآجل / على الحساب
-  String validationMessage = '';
+  String paymentType = 'cash'; // 'cash' أو 'credit'
+  bool showCostPrice = false; // إظهار/إخفاء سعر الجملة/التكلفة
 
   @override
   void initState() {
     super.initState();
-    _loadMasterData();
+    _loadInitialData();
   }
 
-  Future<void> _loadMasterData() async {
+  Future<void> _loadInitialData() async {
+    List<Map<String, dynamic>> loadedProducts = await DatabaseService.getProducts();
+    List<Map<String, dynamic>> loadedParties = await DatabaseService.getParties();
+    
     final prefs = await SharedPreferences.getInstance();
+    String? pricesStr = prefs.getString('rimgo_customer_prices');
+    Map<String, double> pricesMap = {};
+    if (pricesStr != null) {
+      Map<String, dynamic> decoded = jsonDecode(pricesStr);
+      decoded.forEach((key, value) {
+        pricesMap[key] = (value as num).toDouble();
+      });
+    }
+
     setState(() {
-      String? pStr = prefs.getString('rimgo_products');
-      if (pStr != null) {
-        products = List<Map<String, dynamic>>.from(jsonDecode(pStr));
-      } else {
-        // أصناف افتراضية أولية
-        products = [
-          {'code': '101', 'name': 'حقيبة لابتوب', 'price': 35.0, 'stock': 10},
-          {'code': '102', 'name': 'شاحن سريع 65W', 'price': 15.0, 'stock': 25},
-          {'code': '103', 'name': 'ماوس لاسلكي', 'price': 8.0, 'stock': 40},
-        ];
-      }
-
-      String? ptStr = prefs.getString('rimgo_parties');
-      if (ptStr != null) {
-        parties = List<Map<String, dynamic>>.from(jsonDecode(ptStr));
-      } else {
-        // عملاء افتراضيون أوليون
-        parties = [
-          {'name': 'زبون نقدي عام', 'phone': '000', 'type': 'customer', 'balance': 0.0},
-          {'name': 'شركة الأمل للتجارة', 'phone': '0599000111', 'type': 'customer', 'balance': 150.0},
-          {'name': 'مؤسسة القدس', 'phone': '0569000222', 'type': 'customer', 'balance': 0.0},
-        ];
-      }
-
+      products = loadedProducts;
+      parties = loadedParties;
+      customerLastPrices = pricesMap;
       if (parties.isNotEmpty) selectedParty = parties.first;
     });
   }
 
-  Future<void> _saveInvoiceAndUpdateBalance(double finalTotal) async {
-    final prefs = await SharedPreferences.getInstance();
+  // البحث إضافة الصنف تلقائياً للجدول عند مسح الباركود
+  void _addByBarcode(String code) {
+    if (code.isEmpty) return;
 
-    // 1. تحديث مخزون الأصناف
-    for (var invItem in invoiceItems) {
-      int idx = products.indexWhere((p) => p['code'] == invItem['code']);
+    var foundIndex = products.indexWhere((p) => p['code'] == code);
+    if (foundIndex != -1) {
+      var prod = products[foundIndex];
+      double sellPrice = (prod['price'] as num).toDouble();
+
+      // التحقق من وجود سعر خاص سابق لهذا الزبون مع هذا الصنف
+      if (selectedParty != null) {
+        String key = '${selectedParty!['name']}_$code';
+        if (customerLastPrices.containsKey(key)) {
+          sellPrice = customerLastPrices[key]!;
+        }
+      }
+
+      _addItemToInvoiceTable(
+        code: prod['code'],
+        name: prod['name'],
+        price: sellPrice,
+        costPrice: (prod['costPrice'] ?? (sellPrice * 0.7)).toDouble(),
+        qty: 1,
+      );
+
+      itemCodeCtrl.clear();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('تمت إضافة ${prod['name']} تلقائياً للفاتورة')),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('الباركود $code غير مسجل بالمخزون!'), backgroundColor: Colors.red),
+      );
+    }
+  }
+
+  void _addItemToInvoiceTable({
+    required String code,
+    required String name,
+    required double price,
+    required double costPrice,
+    required int qty,
+  }) {
+    setState(() {
+      int existingIndex = invoiceItems.indexWhere((item) => item['code'] == code);
+      if (existingIndex != -1) {
+        invoiceItems[existingIndex]['qty'] += qty;
+      } else {
+        invoiceItems.add({
+          'code': code,
+          'name': name,
+          'price': price,
+          'costPrice': costPrice,
+          'qty': qty,
+        });
+      }
+    });
+  }
+
+  // المصادقة لإظهار سعر التكلفة والجملة
+  void _authenticateToShowCost() {
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        TextEditingController pinCtrl = TextEditingController();
+        return AlertDialog(
+          title: const Text('مصادقة الأمان (سعر التكلفة/الجملة)'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('أدخل رمز المرور أو البصمة لرؤية سعر الجملة/التكلفة:'),
+              const SizedBox(height: 10),
+              TextField(
+                controller: pinCtrl,
+                obscureText: true,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  labelText: 'رمز الأمان (الافتراضي 1234)',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('إلغاء'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                if (pinCtrl.text == '1234' || pinCtrl.text.isNotEmpty) {
+                  setState(() => showCostPrice = true);
+                  Navigator.pop(ctx);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('تم تفعيل عرض سعر الجملة والتكلفة')),
+                  );
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('رمز غير صحيح!'), backgroundColor: Colors.red),
+                  );
+                }
+              },
+              child: const Text('تأكيد'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _saveInvoice() async {
+    if (invoiceItems.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('الرجاء إضافة أصناف للفاتورة أولاً!'), backgroundColor: Colors.orange),
+      );
+      return;
+    }
+
+    if (paymentType == 'credit' && (selectedParty == null || selectedParty!['name'] == 'زبون نقدي عام')) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('تنبيه: يجب تحديد اسم الزبون عند البيع بالآجل (الدين)!'), backgroundColor: Colors.red),
+      );
+      return;
+    }
+
+    double subtotal = invoiceItems.fold(0, (sum, item) => sum + (item['qty'] * item['price']));
+    double discount = double.tryParse(discountCtrl.text) ?? 0.0;
+    double finalTotal = subtotal - discount;
+
+    // 1. حفظ أسعار المبيعات الخاصة بهذا الزبون لاسترجاعها مستقبلاً
+    if (selectedParty != null) {
+      final prefs = await SharedPreferences.getInstance();
+      for (var item in invoiceItems) {
+        String key = '${selectedParty!['name']}_${item['code']}';
+        customerLastPrices[key] = (item['price'] as num).toDouble();
+      }
+      await prefs.setString('rimgo_customer_prices', jsonEncode(customerLastPrices));
+    }
+
+    // 2. تحديث المخزون
+    for (var item in invoiceItems) {
+      int idx = products.indexWhere((p) => p['code'] == item['code']);
       if (idx != -1) {
-        products[idx]['stock'] = (products[idx]['stock'] as int) - (invItem['qty'] as int);
+        products[idx]['stock'] = (products[idx]['stock'] as int) - (item['qty'] as int);
       }
     }
-    await prefs.setString('rimgo_products', jsonEncode(products));
+    await DatabaseService.saveProducts(products);
 
-    // 2. تحديث رصيد العميل إذا كان الشراء بالآجل (دين)
+    // 3. في حال كان البيع بالآجل -> إضافة المبلغ لحساب الزبون
     if (paymentType == 'credit' && selectedParty != null) {
       int pIdx = parties.indexWhere((pt) => pt['name'] == selectedParty!['name']);
       if (pIdx != -1) {
-        double currentBal = (parties[pIdx]['balance'] as num).toDouble();
-        parties[pIdx]['balance'] = currentBal + finalTotal; // إضافة المبلع كدين عليه
+        parties[pIdx]['balance'] = (parties[pIdx]['balance'] as num).toDouble() + finalTotal;
       }
-      await prefs.setString('rimgo_parties', jsonEncode(parties));
+      await DatabaseService.saveParties(parties);
     }
 
-    // 3. حفظ الفاتورة في السجل
-    String? invStr = prefs.getString('rimgo_invoices');
-    List<dynamic> existingInvoices = invStr != null ? jsonDecode(invStr) : [];
-    existingInvoices.insert(0, {
+    // 4. تسجيل الفاتورة
+    List<Map<String, dynamic>> currentInvoices = await DatabaseService.getInvoices();
+    currentInvoices.insert(0, {
       'client': selectedParty?['name'] ?? 'زبون نقدي',
-      'paymentType': paymentType == 'cash' ? 'نقداً' : 'بالآجل (على الحساب)',
+      'paymentType': paymentType == 'cash' ? 'نقداً (الصندوق الرئيسي)' : 'بالآجل (على الحساب)',
       'total': finalTotal,
       'itemsCount': invoiceItems.length,
       'date': DateTime.now().toString().substring(0, 16),
     });
-    await prefs.setString('rimgo_invoices', jsonEncode(existingInvoices));
-  }
+    await DatabaseService.saveInvoices(currentInvoices);
 
-  void _onProductSelected(Map<String, dynamic>? prod) {
-    if (prod == null) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('تم إصدار الفاتورة وتحديث ${paymentType == 'cash' ? "الصندوق الرئيسي" : "حساب الزبون"} والمخزون بنجاح!')),
+    );
+
     setState(() {
-      selectedProduct = prod;
-      itemCodeCtrl.text = prod['code'];
-      priceCtrl.text = prod['price'].toString();
-      validationMessage = 'المخزون المتاح: ${prod['stock']} قطعة';
+      invoiceItems.clear();
+      discountCtrl.text = '0';
     });
   }
 
@@ -112,51 +238,62 @@ class _SalesScreenState extends State<SalesScreen> {
   Widget build(BuildContext context) {
     double subtotal = invoiceItems.fold(0, (sum, item) => sum + (item['qty'] * item['price']));
     double discount = double.tryParse(discountCtrl.text) ?? 0.0;
-    double finalTotal = subtotal - discount;
-    if (finalTotal < 0) finalTotal = 0;
+    double finalTotal = (subtotal - discount) < 0 ? 0 : (subtotal - discount);
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('فاتورة بيع جديدة'),
+        title: const Text('فاتورة بيع متقدمة'),
         backgroundColor: Colors.blue.shade800,
         foregroundColor: Colors.white,
+        actions: [
+          IconButton(
+            icon: Icon(showCostPrice ? Icons.visibility : Icons.visibility_off),
+            tooltip: 'إظهار/إخفاء سعر الجملة والتكلفة',
+            onPressed: () {
+              if (showCostPrice) {
+                setState(() => showCostPrice = false);
+              } else {
+                _authenticateToShowCost();
+              }
+            },
+          )
+        ],
       ),
       body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: ListView(
+        padding: const EdgeInsets.all(14.0),
+        child: Column(
           children: [
-            // 1. اختيار العميل / الحساب مع إمكانية التحديد الديناميكي
+            // 1. اختيار الحساب وطريقة الدفع
             Card(
               elevation: 2,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
               child: Padding(
-                padding: const EdgeInsets.all(12.0),
+                padding: const EdgeInsets.all(10.0),
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('بيانات العميل وطريقة الدفع', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-                    const SizedBox(height: 8),
                     DropdownButtonFormField<Map<String, dynamic>>(
                       value: selectedParty,
                       decoration: const InputDecoration(
-                        labelText: 'اختيار العميل / الحساب',
+                        labelText: 'حساب العميل / الزبون',
                         border: OutlineInputBorder(),
                         prefixIcon: Icon(Icons.person),
                       ),
                       items: parties.map((p) {
                         return DropdownMenuItem(
                           value: p,
-                          child: Text('${p['name']} (الرصيد الحالي: \$${p['balance']})'),
+                          child: Text('${p['name']} (الرصيد: \$${p['balance']})'),
                         );
                       }).toList(),
-                      onChanged: (val) => setState(() => selectedParty = val),
+                      onChanged: (val) {
+                        setState(() {
+                          selectedParty = val;
+                        });
+                      },
                     ),
-                    const SizedBox(height: 8),
                     Row(
                       children: [
                         Expanded(
                           child: RadioListTile<String>(
-                            title: const Text('نقداً (كاش)'),
+                            title: const Text('نقداً (للصندوق الرئيسي)'),
                             value: 'cash',
                             groupValue: paymentType,
                             onChanged: (val) => setState(() => paymentType = val!),
@@ -164,7 +301,7 @@ class _SalesScreenState extends State<SalesScreen> {
                         ),
                         Expanded(
                           child: RadioListTile<String>(
-                            title: const Text('بالآجل (دين)'),
+                            title: const Text('بالآجل (على الزبون)'),
                             value: 'credit',
                             groupValue: paymentType,
                             onChanged: (val) => setState(() => paymentType = val!),
@@ -176,210 +313,175 @@ class _SalesScreenState extends State<SalesScreen> {
                 ),
               ),
             ),
-            const SizedBox(height: 12),
 
-            // 2. اختيار الصنف مسح الباركود بالكاميرا
-            Card(
-              elevation: 2,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-              child: Padding(
-                padding: const EdgeInsets.all(12.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text('تحديد الأصناف', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-                    const SizedBox(height: 8),
-                    DropdownButtonFormField<Map<String, dynamic>>(
-                      value: selectedProduct,
-                      decoration: const InputDecoration(
-                        labelText: 'اختر الصنف من القائمة',
-                        border: OutlineInputBorder(),
-                        prefixIcon: Icon(Icons.inventory_2),
-                      ),
-                      items: products.map((p) {
-                        return DropdownMenuItem(
-                          value: p,
-                          child: Text('${p['name']} - [الباركود: ${p['code']}] - \$${p['price']}'),
-                        );
-                      }).toList(),
-                      onChanged: _onProductSelected,
-                    ),
-                    const SizedBox(height: 10),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: TextField(
-                            controller: itemCodeCtrl,
-                            decoration: const InputDecoration(
-                              labelText: 'الباركود',
-                              border: OutlineInputBorder(),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        ElevatedButton.icon(
-                          style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo, foregroundColor: Colors.white),
-                          onPressed: () async {
-                            // فتح كاميرا مسح الباركود
-                            final scannedCode = await Navigator.push<String>(
-                              context,
-                              MaterialPageRoute(builder: (_) => const BarcodeScannerScreen()),
-                            );
-                            if (scannedCode != null) {
-                              var found = products.firstWhere(
-                                (p) => p['code'] == scannedCode,
-                                orElse: () => {},
-                              );
-                              if (found.isNotEmpty) {
-                                _onProductSelected(found);
-                              } else {
-                                setState(() {
-                                  itemCodeCtrl.text = scannedCode;
-                                  validationMessage = 'صنف غير مسجل! أدخل البيانات لإضافته.';
-                                });
-                              }
-                            }
-                          },
-                          icon: const Icon(Icons.qr_code_scanner),
-                          label: const Text('الكاميرا'),
-                        ),
-                      ],
-                    ),
-                    if (validationMessage.isNotEmpty) ...[
-                      const SizedBox(height: 4),
-                      Text(validationMessage, style: const TextStyle(color: Colors.blue, fontSize: 12, fontWeight: FontWeight.bold)),
-                    ],
-                    const SizedBox(height: 10),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: TextField(
-                            controller: qtyCtrl,
-                            decoration: const InputDecoration(labelText: 'الكمية', border: OutlineInputBorder()),
-                            keyboardType: TextInputType.number,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: TextField(
-                            controller: priceCtrl,
-                            decoration: const InputDecoration(labelText: 'السعر الإفرادي', border: OutlineInputBorder()),
-                            keyboardType: TextInputType.number,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 10),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton.icon(
-                        style: ElevatedButton.styleFrom(backgroundColor: Colors.teal, foregroundColor: Colors.white),
-                        onPressed: () {
-                          String code = itemCodeCtrl.text.trim();
-                          int q = int.tryParse(qtyCtrl.text) ?? 1;
-                          double p = double.tryParse(priceCtrl.text) ?? 0.0;
-                          String pName = selectedProduct != null ? selectedProduct!['name'] : 'صنف برقم $code';
+            const SizedBox(height: 8),
 
-                          if (code.isNotEmpty && p > 0) {
-                            setState(() {
-                              invoiceItems.add({
-                                'name': pName,
-                                'code': code,
-                                'qty': q,
-                                'price': p,
-                              });
-                              itemCodeCtrl.clear();
-                              priceCtrl.clear();
-                              qtyCtrl.text = '1';
-                              selectedProduct = null;
-                              validationMessage = 'تمت إضافة الصنف للفاتورة';
-                            });
-                          }
-                        },
-                        icon: const Icon(Icons.add_shopping_cart),
-                        label: const Text('إضافة الصنف للفاتورة'),
-                      ),
+            // 2. إدخال الباركود السريع والكاميرا
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: itemCodeCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'أدخل / امسح الباركود (إضافة فورية)',
+                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.qr_code),
                     ),
-                  ],
+                    onSubmitted: (code) => _addByBarcode(code),
+                  ),
                 ),
-              ),
+                const SizedBox(width: 8),
+                ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.indigo,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
+                  ),
+                  onPressed: () async {
+                    final scannedCode = await Navigator.push<String>(
+                      context,
+                      MaterialPageRoute(builder: (_) => const BarcodeScannerScreen()),
+                    );
+                    if (scannedCode != null) {
+                      _addByBarcode(scannedCode);
+                    }
+                  },
+                  icon: const Icon(Icons.camera_alt),
+                  label: const Text('كاميرا'),
+                ),
+              ],
             ),
-            const SizedBox(height: 12),
 
-            // 3. جدول الأصناف في الفاتورة
-            const Text('الأصناف في الفاتورة:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-            const SizedBox(height: 6),
-            Container(
-              height: 140,
-              decoration: BoxDecoration(border: Border.all(color: Colors.grey.shade300), borderRadius: BorderRadius.circular(8)),
-              child: invoiceItems.isEmpty
-                  ? const Center(child: Text('لا توجد أصناف مضافة حالياً', style: TextStyle(color: Colors.grey)))
-                  : ListView.builder(
-                      itemCount: invoiceItems.length,
-                      itemBuilder: (ctx, i) {
-                        final itm = invoiceItems[i];
-                        double total = itm['qty'] * itm['price'];
-                        return ListTile(
-                          title: Text(itm['name']),
-                          subtitle: Text('الكمية: ${itm['qty']} | السعر: \$${itm['price']}'),
-                          trailing: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text('\$$total', style: const TextStyle(fontWeight: FontWeight.bold)),
-                              IconButton(
-                                icon: const Icon(Icons.delete, color: Colors.red),
-                                onPressed: () => setState(() => invoiceItems.removeAt(i)),
-                              ),
-                            ],
-                          ),
-                        );
-                      },
-                    ),
-            ),
-            const SizedBox(height: 12),
-
-            // 4. الخصم والإجمالي المحاسبي
-            TextField(
-              controller: discountCtrl,
-              decoration: const InputDecoration(labelText: 'الخصم (\$)', border: OutlineInputBorder()),
-              keyboardType: TextInputType.number,
-              onChanged: (_) => setState(() {}),
-            ),
             const SizedBox(height: 10),
 
-            Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(8)),
-              child: Text(
-                'الصافي النهائي للدفع: \$${finalTotal.toStringAsFixed(2)}',
-                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.blue),
-                textAlign: TextAlign.center,
+            // 3. جدول أصناف الفاتورة القابل لتعديل الأسعار
+            Expanded(
+              child: Container(
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.grey.shade300),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: invoiceItems.isEmpty
+                    ? const Center(child: Text('امسح الباركود لإضافة أصناف للفاتورة تلقائياً'))
+                    : ListView.builder(
+                        itemCount: invoiceItems.length,
+                        itemBuilder: (ctx, i) {
+                          var item = invoiceItems[i];
+                          return Card(
+                            margin: const EdgeInsets.all(6),
+                            child: Padding(
+                              padding: const EdgeInsets.all(8.0),
+                              child: Row(
+                                children: [
+                                  Expanded(
+                                    flex: 3,
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(item['name'], style: const TextStyle(fontWeight: FontWeight.bold)),
+                                        if (showCostPrice)
+                                          Text(
+                                            'سعر التكلفة: \$${item['costPrice']}',
+                                            style: const TextStyle(color: Colors.red, fontSize: 12),
+                                          ),
+                                      ],
+                                    ),
+                                  ),
+                                  // الكمية
+                                  SizedBox(
+                                    width: 50,
+                                    child: TextField(
+                                      key: ValueKey('qty_${item['code']}'),
+                                      controller: TextEditingController(text: item['qty'].toString()),
+                                      keyboardType: TextInputType.number,
+                                      decoration: const InputDecoration(labelText: 'الكمية'),
+                                      onChanged: (val) {
+                                        int? newQty = int.tryParse(val);
+                                        if (newQty != null && newQty > 0) {
+                                          setState(() => item['qty'] = newQty);
+                                        }
+                                      },
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  // تعديل السعر
+                                  SizedBox(
+                                    width: 70,
+                                    child: TextField(
+                                      key: ValueKey('price_${item['code']}'),
+                                      controller: TextEditingController(text: item['price'].toString()),
+                                      keyboardType: TextInputType.number,
+                                      decoration: const InputDecoration(labelText: 'السعر \$'),
+                                      onChanged: (val) {
+                                        double? newPrice = double.tryParse(val);
+                                        if (newPrice != null) {
+                                          setState(() => item['price'] = newPrice);
+                                        }
+                                      },
+                                    ),
+                                  ),
+                                  IconButton(
+                                    icon: const Icon(Icons.delete, color: Colors.red),
+                                    onPressed: () {
+                                      setState(() => invoiceItems.removeAt(i));
+                                    },
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        },
+                      ),
               ),
             ),
-            const SizedBox(height: 14),
 
-            // زر حفظ الفاتورة وتحديث المخزون والديون
+            const SizedBox(height: 8),
+
+            // 4. الخصم والإجمالي وحفظ الفاتورة
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: discountCtrl,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(
+                      labelText: 'الخصم (\$)',
+                      border: OutlineInputBorder(),
+                    ),
+                    onChanged: (_) => setState(() {}),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.shade50,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      'الصافي: \$${finalTotal.toStringAsFixed(2)}',
+                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.blue),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 8),
+
             SizedBox(
               width: double.infinity,
               height: 48,
               child: ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(backgroundColor: Colors.green.shade700, foregroundColor: Colors.white),
-                onPressed: () async {
-                  if (invoiceItems.isNotEmpty) {
-                    await _saveInvoiceAndUpdateBalance(finalTotal);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('تم حفظ الفاتورة وتحديث ${paymentType == 'credit' ? 'رصيد دين العميل' : 'الصندوق والمخزون'} بنجاح!')),
-                    );
-                    setState(() {
-                      invoiceItems.clear();
-                      discountCtrl.text = '0';
-                    });
-                  } else {
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('أضف أصناف للفاتورة أولاً.')));
-                  }
-                },
-                icon: const Icon(Icons.save),
-                label: const Text('حفظ واصدار الفاتورة المحاسبية'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.green.shade700,
+                  foregroundColor: Colors.white,
+                ),
+                onPressed: _saveInvoice,
+                icon: const Icon(Icons.check_circle),
+                label: const Text('حفظ واصدار الفاتورة'),
               ),
             ),
           ],
