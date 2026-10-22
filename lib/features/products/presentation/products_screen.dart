@@ -1,6 +1,4 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import '../../../core/services/database_service.dart';
 
 class ProductsScreen extends StatefulWidget {
@@ -93,19 +91,15 @@ class _ProductsScreenState extends State<ProductsScreen> {
                     const SizedBox(height: 10),
                     SizedBox(
                       width: double.infinity,
-                      child: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.green.shade700,
-                        foregroundColor: Colors.white,
-                      ).wrapButton(
-                        ElevatedButton.icon(
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.green.shade700,
-                            foregroundColor: Colors.white,
-                          ),
-                          onPressed: _addProduct,
-                          icon: const Icon(Icons.add),
-                          label: const Text('حفظ الصنف الجديد'),
+                      height: 48,
+                      child: ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.green.shade700,
+                          foregroundColor: Colors.white,
                         ),
+                        onPressed: _addProduct,
+                        icon: const Icon(Icons.add),
+                        label: const Text('حفظ الصنف الجديد'),
                       ),
                     ),
                   ],
@@ -141,9 +135,4 @@ class _ProductsScreenState extends State<ProductsScreen> {
       ),
     );
   }
-}
-
-// امتداد مساعد لضمان عدم وجود أخطاء في الـ Style والتغليف
-extension ButtonStyleExtension on ButtonStyle {
-  Widget wrapButton(Widget child) => child;
 }

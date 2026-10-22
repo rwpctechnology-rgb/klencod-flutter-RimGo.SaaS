@@ -1,16 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../sales/presentation/sales_screen.dart';
-import '../../sales/presentation/sales_return_screen.dart';
-import '../../purchases/presentation/purchase_screen.dart';
-import '../../purchases/presentation/purchase_return_screen.dart';
-import '../../orders/presentation/orders_screen.dart';
-import '../../checks/presentation/incoming_checks_screen.dart';
-import '../../checks/presentation/outgoing_checks_screen.dart';
-import '../../reports/presentation/daily_transactions_screen.dart';
 import '../../cash/presentation/cash_screen.dart';
 import '../../customers/presentation/parties_screen.dart';
 import '../../products/presentation/products_screen.dart';
-import '../../products/presentation/categories_screen.dart';
 import '../../reports/presentation/reports_screen.dart';
 import '../../settings/presentation/settings_screen.dart';
 
@@ -43,69 +35,12 @@ class DashboardScreen extends StatelessWidget {
             onTap: () => Navigator.pop(context),
           ),
           const Divider(),
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 4),
-            Text('المبيعات والمشتريات', style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold)),
-          ),
           ListTile(
             leading: const Icon(Icons.point_of_sale, color: Colors.blue),
             title: const Text('فاتورة بيع جديدة'),
             onTap: () {
               Navigator.pop(context);
               Navigator.push(context, MaterialPageRoute(builder: (_) => const SalesScreen()));
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.shopping_bag, color: Colors.teal),
-            title: const Text('فاتورة شراء (موردين)'),
-            onTap: () {
-              Navigator.pop(context);
-              Navigator.push(context, MaterialPageRoute(builder: (_) => const PurchaseScreen()));
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.assignment_return, color: Colors.orange),
-            title: const Text('مردود بيع (مرتجعات زبائن)'),
-            onTap: () {
-              Navigator.pop(context);
-              Navigator.push(context, MaterialPageRoute(builder: (_) => const SalesReturnScreen()));
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.undo, color: Colors.purple),
-            title: const Text('مردود شراء (مرتجعات لموردين)'),
-            onTap: () {
-              Navigator.pop(context);
-              Navigator.push(context, MaterialPageRoute(builder: (_) => const PurchaseReturnScreen()));
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.note_add, color: Colors.indigo),
-            title: const Text('إدارة الطلبيات'),
-            onTap: () {
-              Navigator.pop(context);
-              Navigator.push(context, MaterialPageRoute(builder: (_) => const OrdersScreen()));
-            },
-          ),
-          const Divider(),
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 4),
-            Text('الشيكات والمالية', style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold)),
-          ),
-          ListTile(
-            leading: const Icon(Icons.check_circle_outline, color: Colors.green),
-            title: const Text('الشيكات الواردة (من الزبائن)'),
-            onTap: () {
-              Navigator.pop(context);
-              Navigator.push(context, MaterialPageRoute(builder: (_) => const IncomingChecksScreen()));
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.outbox, color: Colors.deepPurple),
-            title: const Text('الشيكات الصادرة (للموردين)'),
-            onTap: () {
-              Navigator.pop(context);
-              Navigator.push(context, MaterialPageRoute(builder: (_) => const OutgoingChecksScreen()));
             },
           ),
           ListTile(
@@ -117,32 +52,11 @@ class DashboardScreen extends StatelessWidget {
             },
           ),
           ListTile(
-            leading: const Icon(Icons.receipt_long, color: Colors.blueGrey),
-            title: const Text('سجل الحركات اليومية والفواتير'),
-            onTap: () {
-              Navigator.pop(context);
-              Navigator.push(context, MaterialPageRoute(builder: (_) => const DailyTransactionsScreen()));
-            },
-          ),
-          const Divider(),
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 4),
-            Text('المخزون والعملاء', style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold)),
-          ),
-          ListTile(
             leading: const Icon(Icons.inventory_2, color: Colors.brown),
             title: const Text('المنتجات والمخزون'),
             onTap: () {
               Navigator.pop(context);
               Navigator.push(context, MaterialPageRoute(builder: (_) => const ProductsScreen()));
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.account_tree, color: Colors.teal),
-            title: const Text('شجرة وتصنيفات الأصناف'),
-            onTap: () {
-              Navigator.pop(context);
-              Navigator.push(context, MaterialPageRoute(builder: (_) => const CategoriesScreen()));
             },
           ),
           ListTile(
@@ -204,15 +118,6 @@ class DashboardScreen extends StatelessWidget {
                     onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SalesScreen())),
                     icon: const Icon(Icons.add_shopping_cart),
                     label: const Text('فاتورة بيع'),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 14), backgroundColor: Colors.teal, foregroundColor: Colors.white),
-                    onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const PurchaseScreen())),
-                    icon: const Icon(Icons.shopping_bag),
-                    label: const Text('فاتورة شراء'),
                   ),
                 ),
               ],
